@@ -3,9 +3,10 @@
   "config": {
     "step": {
       "user": {
-        "title": "Thermal Printer Notes einrichten",
-        "description": "Lege die zentralen Druck- und Verlaufsvorgaben fest. Ausrichtung und Schriftgrösse wählen Benutzer später selbst in der Karte.",
+        "title": "Thermodrucker einrichten",
+        "description": "Wähle den ESPHome-Drucker und lege seine zentralen Druck- und Verlaufsvorgaben fest. Weitere Drucker können als zusätzliche Einträge eingerichtet werden.",
         "data": {
+          "source_device_id": "ESPHome-Drucker",
           "print_action": "ESPHome-Druckaktion",
           "history_limit": "Maximale Verlaufseinträge pro Benutzer",
           "copies": "Anzahl Exemplare",
@@ -14,11 +15,12 @@
           "cut": "Nach dem Druck schneiden"
         },
         "data_description": {
-          "print_action": "Dienst im Format domain.dienst, standardmässig esphome.thermal_printer_print_markdown.",
-          "history_limit": "Gilt zentral für alle Benutzer; Standardwert 20.",
-          "copies": "Wird für alle Druckaufträge verwendet.",
+          "source_device_id": "Das ESPHome-Gerät, zu dem Status, Bereit, Warteschlange und Druckaktion gehören.",
+          "print_action": "Dienst im Format domain.dienst, normalerweise esphome.thermal_printer_print_markdown.",
+          "history_limit": "Gilt für diesen Drucker und jeden Benutzer getrennt; Standardwert 20.",
+          "copies": "Wird für alle Aufträge dieses Druckers verwendet.",
           "feed_lines": "Papierzeilen vor dem Schneiden.",
-          "reverse_print": "Druckt den Inhalt in der vom ESPHome-Treiber unterstützten Rückwärtsrichtung.",
+          "reverse_print": "Druckt in der vom ESPHome-Treiber unterstützten Rückwärtsrichtung.",
           "cut": "Betätigt den Abschneider nach dem Ausdruck."
         }
       }
@@ -27,15 +29,16 @@
       "invalid_action": "Die Aktion muss im Format domain.dienst angegeben werden."
     },
     "abort": {
-      "single_instance_allowed": "Thermal Printer Notes kann nur einmal eingerichtet werden."
+      "already_configured": "Dieser ESPHome-Drucker ist bereits eingerichtet."
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Zentrale Druckvorgaben",
-        "description": "Diese Werte gelten für alle Benutzer. Vorhandene Verläufe werden beim Verkleinern des Limits auf die neuesten Einträge gekürzt.",
+        "description": "Diese Werte gelten für den gewählten Drucker. Entwürfe und Verläufe bleiben pro Drucker und Benutzer getrennt.",
         "data": {
+          "source_device_id": "ESPHome-Drucker",
           "print_action": "ESPHome-Druckaktion",
           "history_limit": "Maximale Verlaufseinträge pro Benutzer",
           "copies": "Anzahl Exemplare",
@@ -46,7 +49,8 @@
       }
     },
     "error": {
-      "invalid_action": "Die Aktion muss im Format domain.dienst angegeben werden."
+      "invalid_action": "Die Aktion muss im Format domain.dienst angegeben werden.",
+      "already_configured": "Dieser ESPHome-Drucker ist bereits als anderer Eintrag eingerichtet."
     }
   }
 }

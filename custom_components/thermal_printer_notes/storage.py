@@ -64,10 +64,10 @@ def validate_document(document: dict[str, Any]) -> dict[str, str]:
 class UserDataStore:
     """Store drafts and history without exposing them as HA entities."""
 
-    def __init__(self, hass: HomeAssistant) -> None:
+    def __init__(self, hass: HomeAssistant, storage_key: str = STORAGE_KEY) -> None:
         """Initialize the store wrapper."""
         self._store = storage.Store[dict[str, Any]](
-            hass, STORAGE_VERSION, STORAGE_KEY, private=True
+            hass, STORAGE_VERSION, storage_key, private=True
         )
         self._data: dict[str, Any] = {"users": {}}
         self._lock = asyncio.Lock()

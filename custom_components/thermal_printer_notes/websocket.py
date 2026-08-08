@@ -10,9 +10,10 @@ from homeassistant.core import Context, HomeAssistant
 from homeassistant.util import dt as dt_util
 import voluptuous as vol
 
-from .const import DOMAIN, entry_settings
+from .const import DOMAIN, MAX_MARKDOWN_LENGTH, entry_settings
 from .storage import UserDataStore, ValidationError, validate_document
 
+WS_LIST_PRINTERS = f"{DOMAIN}/list_printers"
 WS_GET_STATE = f"{DOMAIN}/get_state"
 WS_SAVE_DRAFT = f"{DOMAIN}/save_draft"
 WS_SAVE_HISTORY = f"{DOMAIN}/save_history"
@@ -22,7 +23,9 @@ WS_HISTORY_DELETE = f"{DOMAIN}/history/delete"
 WS_HISTORY_CLEAR = f"{DOMAIN}/history/clear"
 WS_HISTORY_PRINT = f"{DOMAIN}/history/print"
 
+DEVICE_SCHEMA = {vol.Optional("device_id", default=""): str}
 DOCUMENT_SCHEMA = {
+    **DEVICE_SCHEMA,
     vol.Optional("title", default=""): str,
     vol.Optional("markdown", default=""): str,
     vol.Optional("alignment", default="left"): str,
@@ -30,21 +33,29 @@ DOCUMENT_SCHEMA = {
 }
 
 
-def _runtime(hass: HomeAssistant) -> tuple[ConfigEntry, UserDataStore]:
-    """Return the single configured runtime."""
-    runtime = hass.data.get(DOMAIN, {})
-    entry = runtime.get("entry")
-    store = runtime.get("store")
-    if entry is None or store is None:
-        raise RuntimeError("Thermal Printer Notes is not configured")
-    return entry, store
+def _runtime(hass: HomeAssistant, msg: dict[str, Any]) -> dict[str, Any]:
+    """Resolve the selected virtual printer device to its runtime."""
+    root = hass.data.get(DOMAIN, {})
+    entries = root.get("entries", {})
+    device_id = str(msg.get("device_id", ""))
+    if device_id:
+        entry_id = root.get("devices", {}).get(device_id)
+        runtime = entries.get(entry_id)
+        if runtime is None:
+            raise RuntimeError("Der ausgewählte Drucker ist nicht verfügbar")
+        return runtime
+    if len(entries) == 1:
+        return next(iter(entries.values()))
+    if not entries:
+        raise RuntimeError("Thermal Printer Notes ist nicht konfiguriert")
+    raise RuntimeError("Bitte einen Drucker in der Kartenkonfiguration auswählen")
 
 
 def _user(connection: websocket_api.ActiveConnection) -> tuple[str, str]:
     """Get identity only from the authenticated Home Assistant connection."""
     user = connection.user
     if user is None:
-        raise RuntimeError("Authenticated user is unavailable")
+        raise RuntimeError("Angemeldeter Benutzer ist nicht verfügbar")
     return user.id, user.name or "Home Assistant"
 
 
@@ -98,7 +109,6 @@ async def _submit_print(
         "reverse_print": settings["reverse_print"],
         "cut": settings["cut"],
     }
-
     try:
         await hass.services.async_call(
             domain,
@@ -112,7 +122,6 @@ async def _submit_print(
             user_id, history["id"], "failed", str(err)
         )
         raise
-
     await store.async_update_history_status(user_id, history["id"], "submitted")
     history["status"] = "submitted"
     return history
@@ -125,16 +134,46 @@ def _send_validation_error(
     connection.send_error(msg_id, "invalid_document", str(err))
 
 
-@websocket_api.websocket_command({vol.Required("type"): WS_GET_STATE})
+def _printer_payload(runtime: dict[str, Any]) -> dict[str, Any]:
+    """Return card-safe metadata for a configured printer."""
+    entry: ConfigEntry = runtime["entry"]
+    return {
+        "device_id": runtime["device_id"],
+        "name": entry.title,
+        **runtime["entities"].as_dict(),
+    }
+
+
+@websocket_api.websocket_command({vol.Required("type"): WS_LIST_PRINTERS})
+@websocket_api.async_response
+async def websocket_list_printers(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """List selectable integration-owned printer devices."""
+    runtimes = hass.data.get(DOMAIN, {}).get("entries", {}).values()
+    printers = sorted(
+        (_printer_payload(item) for item in runtimes),
+        key=lambda item: item["name"].casefold(),
+    )
+    connection.send_result(msg["id"], {"printers": printers})
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): WS_GET_STATE, **DEVICE_SCHEMA}
+)
 @websocket_api.async_response
 async def websocket_get_state(
     hass: HomeAssistant,
     connection: websocket_api.ActiveConnection,
     msg: dict[str, Any],
 ) -> None:
-    """Return only the current user's draft and history."""
+    """Return only the current user's data for one printer."""
     try:
-        entry, store = _runtime(hass)
+        runtime = _runtime(hass, msg)
+        entry: ConfigEntry = runtime["entry"]
+        store: UserDataStore = runtime["store"]
         user_id, user_name = _user(connection)
     except RuntimeError as err:
         connection.send_error(msg["id"], "not_ready", str(err))
@@ -144,11 +183,23 @@ async def websocket_get_state(
         msg["id"],
         {
             "user_name": user_name,
+            "printer": _printer_payload(runtime),
             "draft": await store.async_get_draft(user_id),
             "history": await store.async_list_history(
                 user_id, int(settings["history_limit"])
             ),
             "settings": settings,
+            "max_markdown_bytes": MAX_MARKDOWN_LENGTH,
+            "preview_profile": {
+                "dots": 384,
+                "normal_columns": 32,
+                "small_columns": 42,
+                "normal_glyph_height": 24,
+                "small_glyph_height": 17,
+                "normal_line_height": 30,
+                "small_line_height": 23,
+                "double_line_height": 54,
+            },
         },
     )
 
@@ -162,12 +213,11 @@ async def websocket_save_draft(
     connection: websocket_api.ActiveConnection,
     msg: dict[str, Any],
 ) -> None:
-    """Save a draft in the authenticated user's private bucket."""
+    """Save a private per-printer draft."""
     try:
-        _, store = _runtime(hass)
+        store: UserDataStore = _runtime(hass, msg)["store"]
         user_id, _ = _user(connection)
-        document = _document_from_message(msg)
-        saved = await store.async_save_draft(user_id, document)
+        saved = await store.async_save_draft(user_id, _document_from_message(msg))
     except ValidationError as err:
         _send_validation_error(connection, msg["id"], err)
         return
@@ -186,17 +236,17 @@ async def websocket_save_history(
     connection: websocket_api.ActiveConnection,
     msg: dict[str, Any],
 ) -> None:
-    """Save the draft and a private history snapshot without printing."""
+    """Save a private history snapshot without printing."""
     try:
-        entry, store = _runtime(hass)
+        runtime = _runtime(hass, msg)
+        entry, store = runtime["entry"], runtime["store"]
         user_id, _ = _user(connection)
         document = _document_from_message(msg)
         saved = await store.async_save_draft(user_id, document)
-        settings = entry_settings(entry)
         history = await store.async_add_history(
             user_id,
             document,
-            int(settings["history_limit"]),
+            int(entry_settings(entry)["history_limit"]),
             status="saved",
         )
     except ValidationError as err:
@@ -215,9 +265,10 @@ async def websocket_print(
     connection: websocket_api.ActiveConnection,
     msg: dict[str, Any],
 ) -> None:
-    """Save the draft and history before submitting the print action."""
+    """Save draft/history before submitting the print action."""
     try:
-        entry, store = _runtime(hass)
+        runtime = _runtime(hass, msg)
+        entry, store = runtime["entry"], runtime["store"]
         user_id, user_name = _user(connection)
         document = _document_from_message(msg)
         await store.async_save_draft(user_id, document)
@@ -232,14 +283,20 @@ async def websocket_print(
         return
     except Exception:
         connection.send_error(
-            msg["id"], "print_failed", "The configured print action failed"
+            msg["id"],
+            "print_failed",
+            "Die konfigurierte Druckaktion ist fehlgeschlagen",
         )
         return
     connection.send_result(msg["id"], {"history": history})
 
 
 @websocket_api.websocket_command(
-    {vol.Required("type"): WS_HISTORY_GET, vol.Required("history_id"): str}
+    {
+        vol.Required("type"): WS_HISTORY_GET,
+        **DEVICE_SCHEMA,
+        vol.Required("history_id"): str,
+    }
 )
 @websocket_api.async_response
 async def websocket_history_get(
@@ -247,22 +304,28 @@ async def websocket_history_get(
     connection: websocket_api.ActiveConnection,
     msg: dict[str, Any],
 ) -> None:
-    """Return one history item only if it belongs to the current user."""
+    """Return one own history item."""
     try:
-        _, store = _runtime(hass)
+        store: UserDataStore = _runtime(hass, msg)["store"]
         user_id, _ = _user(connection)
     except RuntimeError as err:
         connection.send_error(msg["id"], "not_ready", str(err))
         return
     item = await store.async_get_history(user_id, msg["history_id"])
     if item is None:
-        connection.send_error(msg["id"], "not_found", "History item not found")
+        connection.send_error(
+            msg["id"], "not_found", "Verlaufseintrag nicht gefunden"
+        )
         return
     connection.send_result(msg["id"], {"history": item})
 
 
 @websocket_api.websocket_command(
-    {vol.Required("type"): WS_HISTORY_DELETE, vol.Required("history_id"): str}
+    {
+        vol.Required("type"): WS_HISTORY_DELETE,
+        **DEVICE_SCHEMA,
+        vol.Required("history_id"): str,
+    }
 )
 @websocket_api.async_response
 async def websocket_history_delete(
@@ -270,29 +333,33 @@ async def websocket_history_delete(
     connection: websocket_api.ActiveConnection,
     msg: dict[str, Any],
 ) -> None:
-    """Delete one of the current user's history items."""
+    """Delete one own history item."""
     try:
-        _, store = _runtime(hass)
+        store: UserDataStore = _runtime(hass, msg)["store"]
         user_id, _ = _user(connection)
     except RuntimeError as err:
         connection.send_error(msg["id"], "not_ready", str(err))
         return
     if not await store.async_delete_history(user_id, msg["history_id"]):
-        connection.send_error(msg["id"], "not_found", "History item not found")
+        connection.send_error(
+            msg["id"], "not_found", "Verlaufseintrag nicht gefunden"
+        )
         return
     connection.send_result(msg["id"], {"deleted": True})
 
 
-@websocket_api.websocket_command({vol.Required("type"): WS_HISTORY_CLEAR})
+@websocket_api.websocket_command(
+    {vol.Required("type"): WS_HISTORY_CLEAR, **DEVICE_SCHEMA}
+)
 @websocket_api.async_response
 async def websocket_history_clear(
     hass: HomeAssistant,
     connection: websocket_api.ActiveConnection,
     msg: dict[str, Any],
 ) -> None:
-    """Clear only the current user's history."""
+    """Clear only the current user's history for one printer."""
     try:
-        _, store = _runtime(hass)
+        store: UserDataStore = _runtime(hass, msg)["store"]
         user_id, _ = _user(connection)
     except RuntimeError as err:
         connection.send_error(msg["id"], "not_ready", str(err))
@@ -302,7 +369,11 @@ async def websocket_history_clear(
 
 
 @websocket_api.websocket_command(
-    {vol.Required("type"): WS_HISTORY_PRINT, vol.Required("history_id"): str}
+    {
+        vol.Required("type"): WS_HISTORY_PRINT,
+        **DEVICE_SCHEMA,
+        vol.Required("history_id"): str,
+    }
 )
 @websocket_api.async_response
 async def websocket_history_print(
@@ -312,24 +383,26 @@ async def websocket_history_print(
 ) -> None:
     """Reprint one own item and create a fresh history snapshot first."""
     try:
-        entry, store = _runtime(hass)
+        runtime = _runtime(hass, msg)
+        entry, store = runtime["entry"], runtime["store"]
         user_id, user_name = _user(connection)
         previous = await store.async_get_history(user_id, msg["history_id"])
         if previous is None:
             connection.send_error(
-                msg["id"], "not_found", "History item not found"
+                msg["id"], "not_found", "Verlaufseintrag nicht gefunden"
             )
             return
-        document = validate_document(previous)
         history = await _submit_print(
-            hass, entry, store, user_id, user_name, document
+            hass, entry, store, user_id, user_name, validate_document(previous)
         )
     except RuntimeError as err:
         connection.send_error(msg["id"], "not_ready", str(err))
         return
     except Exception:
         connection.send_error(
-            msg["id"], "print_failed", "The configured print action failed"
+            msg["id"],
+            "print_failed",
+            "Die konfigurierte Druckaktion ist fehlgeschlagen",
         )
         return
     connection.send_result(msg["id"], {"history": history})
@@ -337,6 +410,7 @@ async def websocket_history_print(
 
 def async_register_websocket_commands(hass: HomeAssistant) -> None:
     """Register the authenticated frontend API once."""
+    websocket_api.async_register_command(hass, websocket_list_printers)
     websocket_api.async_register_command(hass, websocket_get_state)
     websocket_api.async_register_command(hass, websocket_save_draft)
     websocket_api.async_register_command(hass, websocket_save_history)
