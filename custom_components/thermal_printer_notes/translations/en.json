@@ -1,0 +1,52 @@
+{
+  "title": "Thermal Printer Notes",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Thermal Printer Notes",
+        "description": "Set the central print and history defaults. Users choose alignment and font size in the card.",
+        "data": {
+          "print_action": "ESPHome print action",
+          "history_limit": "Maximum history entries per user",
+          "copies": "Number of copies",
+          "feed_lines": "Feed lines",
+          "reverse_print": "Print in reverse",
+          "cut": "Cut after printing"
+        },
+        "data_description": {
+          "print_action": "Service in domain.service format; defaults to esphome.thermal_printer_print_markdown.",
+          "history_limit": "A central limit for every user; defaults to 20.",
+          "copies": "Used for every print job.",
+          "feed_lines": "Paper feed lines before cutting.",
+          "reverse_print": "Uses the ESPHome driver's reverse print direction.",
+          "cut": "Runs the cutter after the print."
+        }
+      }
+    },
+    "error": {
+      "invalid_action": "The action must use domain.service format."
+    },
+    "abort": {
+      "single_instance_allowed": "Thermal Printer Notes can only be configured once."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Central print settings",
+        "description": "These settings apply to every user. Reducing the limit keeps only the newest history entries.",
+        "data": {
+          "print_action": "ESPHome print action",
+          "history_limit": "Maximum history entries per user",
+          "copies": "Number of copies",
+          "feed_lines": "Feed lines",
+          "reverse_print": "Print in reverse",
+          "cut": "Cut after printing"
+        }
+      }
+    },
+    "error": {
+      "invalid_action": "The action must use domain.service format."
+    }
+  }
+}
