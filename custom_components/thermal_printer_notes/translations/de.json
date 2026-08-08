@@ -1,0 +1,52 @@
+{
+  "title": "Thermal Printer Notes",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Thermal Printer Notes einrichten",
+        "description": "Lege die zentralen Druck- und Verlaufsvorgaben fest. Ausrichtung und Schriftgrösse wählen Benutzer später selbst in der Karte.",
+        "data": {
+          "print_action": "ESPHome-Druckaktion",
+          "history_limit": "Maximale Verlaufseinträge pro Benutzer",
+          "copies": "Anzahl Exemplare",
+          "feed_lines": "Vorschubzeilen",
+          "reverse_print": "Rückwärts drucken",
+          "cut": "Nach dem Druck schneiden"
+        },
+        "data_description": {
+          "print_action": "Dienst im Format domain.dienst, standardmässig esphome.thermal_printer_print_markdown.",
+          "history_limit": "Gilt zentral für alle Benutzer; Standardwert 20.",
+          "copies": "Wird für alle Druckaufträge verwendet.",
+          "feed_lines": "Papierzeilen vor dem Schneiden.",
+          "reverse_print": "Druckt den Inhalt in der vom ESPHome-Treiber unterstützten Rückwärtsrichtung.",
+          "cut": "Betätigt den Abschneider nach dem Ausdruck."
+        }
+      }
+    },
+    "error": {
+      "invalid_action": "Die Aktion muss im Format domain.dienst angegeben werden."
+    },
+    "abort": {
+      "single_instance_allowed": "Thermal Printer Notes kann nur einmal eingerichtet werden."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Zentrale Druckvorgaben",
+        "description": "Diese Werte gelten für alle Benutzer. Vorhandene Verläufe werden beim Verkleinern des Limits auf die neuesten Einträge gekürzt.",
+        "data": {
+          "print_action": "ESPHome-Druckaktion",
+          "history_limit": "Maximale Verlaufseinträge pro Benutzer",
+          "copies": "Anzahl Exemplare",
+          "feed_lines": "Vorschubzeilen",
+          "reverse_print": "Rückwärts drucken",
+          "cut": "Nach dem Druck schneiden"
+        }
+      }
+    },
+    "error": {
+      "invalid_action": "Die Aktion muss im Format domain.dienst angegeben werden."
+    }
+  }
+}

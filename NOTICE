@@ -1,0 +1,16 @@
+Thermal Printer Notes
+Copyright (c) 2026 anaegeli
+
+The multiline input interaction was inspired by:
+  lovelace-multiline-text-input-card
+  Copyright (c) 2026 Fabian Brain
+  https://github.com/faeibson/lovelace-multiline-text-input-card
+  Licensed under the MIT License.
+
+Home Assistant/HACS integration structure was informed by:
+  ha-escpos-thermal-printer
+  Copyright (c) 2025 Nathan Byrd
+  https://github.com/cognitivegears/ha-escpos-thermal-printer
+  Licensed under the MIT License.
+
+No printer protocol implementation from either project is included here.

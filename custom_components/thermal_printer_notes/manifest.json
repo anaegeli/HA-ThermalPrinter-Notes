@@ -1,0 +1,14 @@
+{
+  "domain": "thermal_printer_notes",
+  "name": "Thermal Printer Notes",
+  "codeowners": ["@anaegeli"],
+  "config_flow": true,
+  "dependencies": ["frontend", "http", "lovelace"],
+  "documentation": "https://github.com/anaegeli/HA-ThermalPrinter-Notes",
+  "integration_type": "service",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/anaegeli/HA-ThermalPrinter-Notes/issues",
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "0.1.0"
+}
