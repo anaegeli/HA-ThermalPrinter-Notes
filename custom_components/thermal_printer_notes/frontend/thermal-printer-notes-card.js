@@ -52,24 +52,43 @@ class ThermalPrinterNotesCard extends LitElement {
       }
       .status-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-        gap: 8px;
-        margin-bottom: 14px;
+        grid-template-columns: repeat(3, minmax(0, 160px));
+        gap: 6px;
+        margin-bottom: 12px;
       }
       .status-chip {
+        align-items: center;
         background: var(--secondary-background-color);
-        border-radius: 8px;
-        padding: 8px 10px;
+        border-radius: 6px;
+        display: flex;
+        gap: 8px;
+        justify-content: space-between;
         min-width: 0;
+        padding: 5px 8px;
       }
       .status-label {
         color: var(--secondary-text-color);
-        font-size: 11px;
+        font-size: 10px;
       }
       .status-value {
+        font-size: 12px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+      .workspace-grid {
+        align-items: start;
+        display: grid;
+        gap: 18px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .editor-column,
+      .side-column {
+        min-width: 0;
+      }
+      .side-column {
+        display: grid;
+        gap: 16px;
       }
       .field {
         margin-bottom: 12px;
@@ -116,10 +135,26 @@ class ThermalPrinterNotesCard extends LitElement {
       .count.invalid {
         color: var(--error-color);
       }
-      .row {
+      .editor-controls {
+        align-items: end;
         display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
+        gap: 8px;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        margin-top: 10px;
+      }
+      .editor-controls button {
+        font-size: 12px;
+        line-height: 1.2;
+        padding: 7px 9px;
+        width: 100%;
+      }
+      .compact-field {
+        margin: 0;
+        min-width: 0;
+      }
+      .compact-field select {
+        min-height: 38px;
+        padding: 7px 9px;
       }
       .toolbar,
       .print-row,
@@ -183,11 +218,13 @@ class ThermalPrinterNotesCard extends LitElement {
         color: var(--error-color);
         background: color-mix(in srgb, var(--error-color) 12%, transparent);
       }
-      .preview,
       .settings {
         border-top: 1px solid var(--divider-color);
         margin-top: 16px;
         padding-top: 16px;
+      }
+      .preview {
+        min-width: 0;
       }
       .section-title {
         align-items: center;
@@ -203,7 +240,7 @@ class ThermalPrinterNotesCard extends LitElement {
         border: 1px solid #ddd;
         border-radius: 4px;
         box-shadow: 0 2px 5px rgba(0, 0, 0, 0.12);
-        min-height: 90px;
+        min-height: 180px;
         padding: 16px;
       }
       .paper ha-markdown {
@@ -217,16 +254,21 @@ class ThermalPrinterNotesCard extends LitElement {
       }
       .history-head {
         align-items: center;
-        border-top: 1px solid var(--divider-color);
         cursor: pointer;
         display: flex;
         justify-content: space-between;
-        margin: 16px -16px -16px;
-        padding: 13px 16px;
+        padding: 12px;
+      }
+      .history-panel {
+        border: 1px solid var(--divider-color);
+        border-radius: 8px;
+        min-width: 0;
+        overflow: hidden;
       }
       .history-list {
         border-top: 1px solid var(--divider-color);
-        margin: 16px -16px -16px;
+        max-height: 430px;
+        overflow-y: auto;
       }
       .history-tools {
         align-items: center;
@@ -273,20 +315,34 @@ class ThermalPrinterNotesCard extends LitElement {
         color: var(--error-color);
         background: color-mix(in srgb, var(--error-color) 14%, transparent);
       }
+      .badge.saved {
+        color: var(--primary-color);
+        background: color-mix(in srgb, var(--primary-color) 14%, transparent);
+      }
       .empty,
       .loading {
         color: var(--secondary-text-color);
         padding: 24px 16px;
         text-align: center;
       }
-      @media (max-width: 520px) {
-        .row {
+      @media (max-width: 780px) {
+        .workspace-grid {
           grid-template-columns: 1fr;
-          gap: 0;
+        }
+      }
+      @media (max-width: 520px) {
+        .editor-controls {
+          grid-template-columns: 1fr;
+        }
+        .editor-controls button {
+          width: 100%;
         }
         .head {
           align-items: flex-start;
           flex-direction: column;
+        }
+        .status-grid {
+          grid-template-columns: 1fr;
         }
       }
     `;
@@ -302,7 +358,7 @@ class ThermalPrinterNotesCard extends LitElement {
     this._draft = this._emptyDraft();
     this._history = [];
     this._settings = {};
-    this._historyOpen = false;
+    this._historyOpen = true;
     this._saveTimer = undefined;
     this._savePromise = Promise.resolve();
   }
@@ -312,7 +368,7 @@ class ThermalPrinterNotesCard extends LitElement {
     this._config = {
       title: "Thermodrucker",
       min_lines: 12,
-      autosave_delay: 1,
+      autosave_delay_ms: 500,
       ...config,
     };
   }
@@ -339,7 +395,7 @@ class ThermalPrinterNotesCard extends LitElement {
   }
 
   static getStubConfig() {
-    return { title: "Thermodrucker", min_lines: 12, autosave_delay: 1 };
+    return { title: "Thermodrucker", min_lines: 12, autosave_delay_ms: 500 };
   }
 
   static getConfigForm() {
@@ -347,7 +403,7 @@ class ThermalPrinterNotesCard extends LitElement {
       schema: [
         { name: "title", selector: { text: {} } },
         { name: "min_lines", selector: { number: { min: 6, max: 30, step: 1, mode: "box" } } },
-        { name: "autosave_delay", selector: { number: { min: 0.2, max: 10, step: 0.1, mode: "box", unit_of_measurement: "s" } } },
+        { name: "autosave_delay_ms", selector: { number: { min: 150, max: 5000, step: 50, mode: "box", unit_of_measurement: "ms" } } },
         { name: "status_entity", selector: { entity: {} } },
         { name: "ready_entity", selector: { entity: {} } },
         { name: "queue_entity", selector: { entity: {} } },
@@ -355,7 +411,7 @@ class ThermalPrinterNotesCard extends LitElement {
       computeLabel: (schema) => ({
         title: "Kartentitel",
         min_lines: "Mindesthöhe der Texteingabe",
-        autosave_delay: "Verzögerung für automatisches Speichern",
+        autosave_delay_ms: "Verzögerung für automatisches Speichern",
         status_entity: "Status-Entität (optional)",
         ready_entity: "Bereit-Entität (optional)",
         queue_entity: "Warteschlangen-Entität (optional)",
@@ -398,8 +454,11 @@ class ThermalPrinterNotesCard extends LitElement {
 
   _scheduleSave() {
     clearTimeout(this._saveTimer);
-    const seconds = Math.max(0.2, Number(this._config?.autosave_delay ?? 1));
-    this._saveTimer = setTimeout(() => this._saveDraft(false), seconds * 1000);
+    const configured = Number(this._config?.autosave_delay_ms ?? 500);
+    const milliseconds = Number.isFinite(configured)
+      ? Math.min(5000, Math.max(150, configured))
+      : 500;
+    this._saveTimer = setTimeout(() => this._saveDraft(false), milliseconds);
   }
 
   _documentPayload() {
@@ -430,6 +489,39 @@ class ThermalPrinterNotesCard extends LitElement {
       this._savePromise = Promise.resolve();
       this._showError(err, "Entwurf konnte nicht gespeichert werden");
       return false;
+    } finally {
+      this._saving = false;
+      this.requestUpdate();
+    }
+  }
+
+  async _saveToHistory() {
+    if (this._printableBytes() > 4096) {
+      this._showError(null, "Der Text überschreitet 4096 UTF-8-Bytes");
+      return;
+    }
+    clearTimeout(this._saveTimer);
+    this._saving = true;
+    this._message = "";
+    this.requestUpdate();
+    try {
+      try {
+        await this._savePromise;
+      } catch (_err) {
+        this._savePromise = Promise.resolve();
+      }
+      const result = await this._request(
+        "thermal_printer_notes/save_history",
+        this._documentPayload(),
+      );
+      if (result?.draft?.updated_at) {
+        this._draft = { ...this._draft, updated_at: result.draft.updated_at };
+      }
+      await this._refreshHistory();
+      this._showMessage("Notiz gespeichert und dem persönlichen Verlauf hinzugefügt");
+    } catch (err) {
+      this._savePromise = Promise.resolve();
+      this._showError(err, "Notiz konnte nicht im Verlauf gespeichert werden");
     } finally {
       this._saving = false;
       this.requestUpdate();
@@ -534,7 +626,7 @@ class ThermalPrinterNotesCard extends LitElement {
   }
 
   async _clearHistory() {
-    if (!confirm("Deinen gesamten Druckverlauf unwiderruflich löschen?")) return;
+    if (!confirm("Deinen gesamten persönlichen Verlauf unwiderruflich löschen?")) return;
     try {
       await this._request("thermal_printer_notes/history/clear");
       this._history = [];
@@ -613,6 +705,7 @@ class ThermalPrinterNotesCard extends LitElement {
   }
 
   _statusLabel(status) {
+    if (status === "saved") return "Gespeichert";
     if (status === "submitted") return "Übermittelt";
     if (status === "failed") return "Fehlgeschlagen";
     return "Wartet";
@@ -671,7 +764,7 @@ class ThermalPrinterNotesCard extends LitElement {
                 </div>
               `,
             )
-          : html`<div class="empty">Noch keine persönlichen Ausdrucke vorhanden.</div>`}
+          : html`<div class="empty">Noch keine persönlichen Einträge vorhanden.</div>`}
       </div>
     `;
   }
@@ -693,86 +786,104 @@ class ThermalPrinterNotesCard extends LitElement {
 
           ${this._renderStatus()}
 
-          <div class="field">
-            <label for="note-title">Titel (optional)</label>
-            <input
-              id="note-title"
-              maxlength="80"
-              autocomplete="off"
-              .value=${this._draft.title || ""}
-              @input=${(event) => this._updateDraft("title", event.target.value)}
-              placeholder="Titel des Ausdrucks"
-            />
-          </div>
-
-          <div class="field">
-            <label for="note-markdown">Markdown-Text</label>
-            <div class="textarea-wrap">
-              <textarea
-                id="note-markdown"
-                autocomplete="off"
-                style=${`min-height:${minHeight}em`}
-                .value=${this._draft.markdown || ""}
-                @input=${(event) => this._updateDraft("markdown", event.target.value)}
-                placeholder="# Überschrift\nDein Text …"
-              ></textarea>
-            </div>
-            <div class="count ${bytes > 4096 ? "invalid" : ""}">${bytes} / 4096 UTF-8-Bytes</div>
-          </div>
-
-          <div class="toolbar">
-            <button @click=${this._paste}><ha-icon icon="mdi:content-paste"></ha-icon> Einfügen</button>
-            <button @click=${() => this._saveDraft(true)} ?disabled=${this._saving}>
-              <ha-icon icon="mdi:content-save-outline"></ha-icon> Speichern
-            </button>
-            <button class="danger" @click=${this._clearEditor}>
-              <ha-icon icon="mdi:eraser"></ha-icon> Eingabe leeren
-            </button>
-          </div>
-
-          <div class="row">
-            <div class="field">
-              <label for="note-alignment">Ausrichtung</label>
-              <select
-                id="note-alignment"
-                .value=${this._draft.alignment}
-                @change=${(event) => this._updateDraft("alignment", event.target.value)}
-              >
-                <option value="left">Links</option>
-                <option value="center">Zentriert</option>
-                <option value="right">Rechts</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="note-size">Schriftgrösse</label>
-              <select
-                id="note-size"
-                .value=${this._draft.size}
-                @change=${(event) => this._updateDraft("size", event.target.value)}
-              >
-                <option value="normal">Normal</option>
-                <option value="double_width">Doppelte Breite</option>
-                <option value="double_size">Doppelte Grösse</option>
-              </select>
-            </div>
-          </div>
-
           ${this._message
             ? html`<div class="message ${this._messageType}">${this._message}</div>`
             : ""}
 
-          <div class="print-row">
-            <span class="save-state">${this._saving ? "Wird gespeichert …" : "Automatisch gespeichert"}</span>
-            <button class="primary" @click=${this._print} ?disabled=${this._busy || bytes > 4096}>
-              <ha-icon icon="mdi:printer"></ha-icon>
-              ${this._busy ? "Wird gedruckt …" : "Drucken"}
-            </button>
-          </div>
+          <div class="workspace-grid">
+            <div class="editor-column">
+              <div class="field">
+                <label for="note-title">Titel (optional)</label>
+                <input
+                  id="note-title"
+                  maxlength="80"
+                  autocomplete="off"
+                  .value=${this._draft.title || ""}
+                  @input=${(event) => this._updateDraft("title", event.target.value)}
+                  placeholder="Titel des Ausdrucks"
+                />
+              </div>
 
-          <div class="preview">
-            <div class="section-title"><ha-icon icon="mdi:eye-outline"></ha-icon> Druckvorschau</div>
-            <div class="paper">
-              <ha-markdown .content=${this._previewMarkdown()}></ha-markdown>
+              <div class="field">
+                <label for="note-markdown">Markdown-Text</label>
+                <div class="textarea-wrap">
+                  <textarea
+                    id="note-markdown"
+                    autocomplete="off"
+                    style=${`min-height:${minHeight}em`}
+                    .value=${this._draft.markdown || ""}
+                    @input=${(event) => this._updateDraft("markdown", event.target.value)}
+                    placeholder="# Überschrift\nDein Text …"
+                  ></textarea>
+                </div>
+                <div class="count ${bytes > 4096 ? "invalid" : ""}">${bytes} / 4096 UTF-8-Bytes</div>
+              </div>
+
+              <div class="editor-controls">
+                <button @click=${this._paste}>
+                  <ha-icon icon="mdi:content-paste"></ha-icon> Einfügen
+                </button>
+                <button
+                  @click=${this._saveToHistory}
+                  ?disabled=${this._saving || this._busy || bytes > 4096}
+                >
+                  <ha-icon icon="mdi:content-save-outline"></ha-icon> Speichern
+                </button>
+                <button class="danger" @click=${this._clearEditor}>
+                  <ha-icon icon="mdi:eraser"></ha-icon> Eingabe leeren
+                </button>
+                <div class="compact-field">
+                  <label for="note-alignment">Ausrichtung</label>
+                  <select
+                    id="note-alignment"
+                    .value=${this._draft.alignment}
+                    @change=${(event) => this._updateDraft("alignment", event.target.value)}
+                  >
+                    <option value="left">Links</option>
+                    <option value="center">Zentriert</option>
+                    <option value="right">Rechts</option>
+                  </select>
+                </div>
+                <div class="compact-field">
+                  <label for="note-size">Schriftgrösse</label>
+                  <select
+                    id="note-size"
+                    .value=${this._draft.size}
+                    @change=${(event) => this._updateDraft("size", event.target.value)}
+                  >
+                    <option value="normal">Normal</option>
+                    <option value="double_width">Doppelte Breite</option>
+                    <option value="double_size">Doppelte Grösse</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="print-row">
+                <span class="save-state">${this._saving ? "Wird gespeichert …" : "Automatisch gespeichert"}</span>
+                <button class="primary" @click=${this._print} ?disabled=${this._busy || bytes > 4096}>
+                  <ha-icon icon="mdi:printer"></ha-icon>
+                  ${this._busy ? "Wird gedruckt …" : "Drucken"}
+                </button>
+              </div>
+            </div>
+
+            <div class="side-column">
+              <div class="preview">
+                <div class="section-title"><ha-icon icon="mdi:eye-outline"></ha-icon> Druckvorschau</div>
+                <div class="paper">
+                  <ha-markdown .content=${this._previewMarkdown()}></ha-markdown>
+                </div>
+              </div>
+
+              <div class="history-panel">
+                <div class="history-head" @click=${() => (this._historyOpen = !this._historyOpen)}>
+                  <div class="section-title" style="margin:0">
+                    <ha-icon icon="mdi:history"></ha-icon> Mein Verlauf (${this._history.length})
+                  </div>
+                  <ha-icon icon=${this._historyOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
+                </div>
+                ${this._renderHistory()}
+              </div>
             </div>
           </div>
 
@@ -785,14 +896,6 @@ class ThermalPrinterNotesCard extends LitElement {
               Schneiden ${this._settings.cut ? "ein" : "aus"}
             </div>
           </div>
-
-          <div class="history-head" @click=${() => (this._historyOpen = !this._historyOpen)}>
-            <div class="section-title" style="margin:0">
-              <ha-icon icon="mdi:history"></ha-icon> Mein Verlauf (${this._history.length})
-            </div>
-            <ha-icon icon=${this._historyOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon>
-          </div>
-          ${this._renderHistory()}
         </div>
       </ha-card>
     `;
