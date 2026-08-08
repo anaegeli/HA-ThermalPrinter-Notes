@@ -53,4 +53,33 @@ assert.ok(styled.slice(0, 4).every((char) => char.bold));
 assert.ok(styled.slice(-13).every((char) => char.underline));
 assert.equal(card._printerChars("Emoji 😀").map((char) => char.value).join(""), "Emoji ?");
 
+const drawnText = [];
+const fakeContext = {
+  clearRect: () => {},
+  fillRect: () => {},
+  strokeRect: () => {},
+  fillText: (value) => { drawnText.push(value); },
+};
+const fakeCanvas = {
+  width: 0,
+  height: 0,
+  getContext: () => fakeContext,
+};
+card.renderRoot = { querySelectorAll: () => [fakeCanvas] };
+card._drawPreview();
+assert.equal(fakeCanvas.width, 384, "canvas uses the 384-dot print width");
+assert.ok(fakeCanvas.height > 80, "canvas height follows the rendered receipt");
+assert.ok(drawnText.join("").includes("Adrian"), "canvas draws the print header");
+assert.ok(drawnText.join("").includes("HeyDU!!!"), "canvas draws the title");
+
+card._draft = {
+  title: "",
+  markdown: "Wort ".repeat(3200),
+  alignment: "left",
+  size: "double_size",
+};
+const chunks = card._previewChunks();
+assert.ok(chunks.length > 1, "long double-size previews are split into canvases");
+assert.ok(chunks.every((chunk) => chunk.height <= 8000), "canvas chunks stay below browser limits");
+
 console.log("EP-261C preview model checks passed");

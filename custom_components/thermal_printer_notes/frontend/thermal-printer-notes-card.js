@@ -112,7 +112,7 @@ class ThermalPrinterNotesCard extends LitElement {
         background: #fff; box-shadow: 0 1px 4px rgb(0 0 0 / 25%); box-sizing: border-box;
         color: #000; margin: 0 auto; max-width: 420px; padding: 12px 10px 18px;
       }
-      .paper svg { display: block; height: auto; overflow: visible; width: 100%; }
+      .paper canvas { display: block; height: auto; width: 100%; }
       .paper-note { color: #4d4d4d; font-size: 10px; margin-top: 7px; text-align: center; }
       .history-head { cursor: pointer; margin-bottom: 7px; }
       .history-list { display: grid; gap: 8px; }
@@ -182,6 +182,8 @@ class ThermalPrinterNotesCard extends LitElement {
   }
 
   getCardSize() { return 12; }
+
+  updated() { this._drawPreview(); }
 
   static getStubConfig() { return { device_id: "", columns: 2 }; }
 
@@ -525,41 +527,78 @@ class ThermalPrinterNotesCard extends LitElement {
     return rows;
   }
 
-  _segments(chars) {
-    const result = [];
-    chars.forEach((char, index) => {
-      const previous = result[result.length - 1];
-      if (previous && previous.bold === char.bold && previous.underline === char.underline) previous.text += char.value;
-      else result.push({ start: index, text: char.value, bold: char.bold, underline: char.underline });
+  _previewChunks() {
+    const chunks = [];
+    let rows = [];
+    let cursor = 4;
+    for (const row of this._previewRows()) {
+      if (rows.length && cursor + row.line + 8 > 8000) {
+        chunks.push({ rows, height: cursor });
+        rows = [];
+        cursor = 0;
+      }
+      rows.push({ ...row, top: cursor });
+      cursor += row.line;
+    }
+    chunks.push({ rows, height: Math.max(80, cursor + 8) });
+    return chunks;
+  }
+
+  _drawPreview() {
+    const canvases = this.renderRoot?.querySelectorAll("canvas[data-preview-chunk]");
+    if (!canvases?.length) return;
+    const chunks = this._previewChunks();
+    canvases.forEach((canvas, index) => {
+      const chunk = chunks[index];
+      if (!chunk) return;
+      if (canvas.width !== 384) canvas.width = 384;
+      if (canvas.height !== chunk.height) canvas.height = chunk.height;
+      const context = canvas.getContext("2d");
+      if (!context) return;
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.fillStyle = "#000";
+      context.textBaseline = "alphabetic";
+      for (const row of chunk.rows) {
+        if (row.qr) {
+          context.lineWidth = 4;
+          context.strokeStyle = "#000";
+          context.strokeRect(112, row.top + 5, 160, 160);
+          context.textAlign = "center";
+          context.font = "700 18px monospace";
+          context.fillText("QR", 192, row.top + 81);
+          context.font = "400 11px monospace";
+          context.fillText(row.qr.slice(0, 18), 192, row.top + 107, 145);
+          context.textAlign = "left";
+          continue;
+        }
+        const width = row.chars.length * row.cell;
+        const startX = row.align === "center"
+          ? (384 - width) / 2
+          : row.align === "right" ? 384 - width : 0;
+        const baseline = row.top + row.glyph * 0.88;
+        row.chars.forEach((char, charIndex) => {
+          const x = startX + charIndex * row.cell;
+          context.font = `${char.bold ? "700" : "400"} ${row.glyph}px 'Courier New', 'Liberation Mono', monospace`;
+          if (char.value !== " ") context.fillText(char.value, x, baseline, row.cell);
+          if (char.underline) context.fillRect(x, baseline + 1, row.cell, Math.max(1, row.glyph / 18));
+        });
+      }
     });
-    return result;
   }
 
   _renderPreview() {
-    const rows = this._previewRows(); let cursor = 4;
-    const positioned = rows.map((row) => { const item = { ...row, top: cursor }; cursor += row.line; return item; });
-    const height = Math.max(80, cursor + 8);
+    const chunks = this._previewChunks();
     return html`
       <div class="paper-shell"><div class="paper">
-        <svg viewBox=${`0 0 384 ${height}`} role="img" aria-label="Rastergenaue Druckvorschau">
-          ${positioned.map((row) => {
-            if (row.qr) return html`<g transform=${`translate(112 ${row.top + 5})`}><rect width="160" height="160" fill="none" stroke="#000" stroke-width="4"/><text x="80" y="76" text-anchor="middle" font-family="monospace" font-size="18" font-weight="700">QR</text><text x="80" y="102" text-anchor="middle" font-family="monospace" font-size="11">${row.qr.slice(0, 18)}</text></g>`;
-            const width = row.chars.length * row.cell;
-            const x = row.align === "center" ? (384 - width) / 2 : row.align === "right" ? 384 - width : 0;
-            const baseline = row.top + row.glyph * 0.88;
-            return this._segments(row.chars).map((segment) => html`
-              <text
-                x=${x + segment.start * row.cell}
-                y=${baseline}
-                font-family="'Courier New', 'Liberation Mono', monospace"
-                font-size=${row.glyph}
-                font-weight=${segment.bold ? "700" : "400"}
-                text-decoration=${segment.underline ? "underline" : "none"}
-                textLength=${Math.max(0.1, segment.text.length * row.cell)}
-                lengthAdjust="spacingAndGlyphs"
-              >${segment.text}</text>`);
-          })}
-        </svg>
+        ${chunks.map((chunk, index) => html`
+          <canvas
+            data-preview-chunk=${String(index)}
+            width="384"
+            height=${String(chunk.height)}
+            role="img"
+            aria-label=${`Druckvorschau, Abschnitt ${index + 1}`}
+          ></canvas>
+        `)}
         <div class="paper-note">EP-261C · 384 Punkte · 32/42 Zeichen</div>
       </div></div>`;
   }
