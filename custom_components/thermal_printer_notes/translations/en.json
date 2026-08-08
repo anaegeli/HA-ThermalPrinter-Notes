@@ -3,9 +3,10 @@
   "config": {
     "step": {
       "user": {
-        "title": "Set up Thermal Printer Notes",
-        "description": "Set the central print and history defaults. Users choose alignment and font size in the card.",
+        "title": "Set up a thermal printer",
+        "description": "Select the ESPHome printer and set its central print and history defaults. Add another entry for every additional printer.",
         "data": {
+          "source_device_id": "ESPHome printer",
           "print_action": "ESPHome print action",
           "history_limit": "Maximum history entries per user",
           "copies": "Number of copies",
@@ -14,9 +15,10 @@
           "cut": "Cut after printing"
         },
         "data_description": {
-          "print_action": "Service in domain.service format; defaults to esphome.thermal_printer_print_markdown.",
-          "history_limit": "A central limit for every user; defaults to 20.",
-          "copies": "Used for every print job.",
+          "source_device_id": "The ESPHome device that owns the status, ready, queue, and print action.",
+          "print_action": "Service in domain.service format, normally esphome.thermal_printer_print_markdown.",
+          "history_limit": "Applies separately to this printer and every user; defaults to 20.",
+          "copies": "Used for every job on this printer.",
           "feed_lines": "Paper feed lines before cutting.",
           "reverse_print": "Uses the ESPHome driver's reverse print direction.",
           "cut": "Runs the cutter after the print."
@@ -27,15 +29,16 @@
       "invalid_action": "The action must use domain.service format."
     },
     "abort": {
-      "single_instance_allowed": "Thermal Printer Notes can only be configured once."
+      "already_configured": "This ESPHome printer is already configured."
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Central print settings",
-        "description": "These settings apply to every user. Reducing the limit keeps only the newest history entries.",
+        "description": "These settings apply to the selected printer. Drafts and history stay separate for each printer and user.",
         "data": {
+          "source_device_id": "ESPHome printer",
           "print_action": "ESPHome print action",
           "history_limit": "Maximum history entries per user",
           "copies": "Number of copies",
@@ -46,7 +49,8 @@
       }
     },
     "error": {
-      "invalid_action": "The action must use domain.service format."
+      "invalid_action": "The action must use domain.service format.",
+      "already_configured": "This ESPHome printer is already used by another entry."
     }
   }
 }

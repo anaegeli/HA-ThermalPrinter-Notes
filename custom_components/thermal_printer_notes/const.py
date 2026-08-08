@@ -6,8 +6,9 @@ from typing import Final
 
 DOMAIN: Final = "thermal_printer_notes"
 NAME: Final = "Thermal Printer Notes"
-VERSION: Final = "0.1.1"
+VERSION: Final = "0.2.0"
 
+CONF_SOURCE_DEVICE_ID: Final = "source_device_id"
 CONF_PRINT_ACTION: Final = "print_action"
 CONF_HISTORY_LIMIT: Final = "history_limit"
 CONF_COPIES: Final = "copies"
@@ -24,7 +25,7 @@ DEFAULT_CUT: Final = True
 
 MIN_HISTORY_LIMIT: Final = 1
 MAX_HISTORY_LIMIT: Final = 200
-MAX_MARKDOWN_LENGTH: Final = 4096
+MAX_MARKDOWN_LENGTH: Final = 16384
 MAX_TITLE_LENGTH: Final = 80
 
 ALIGNMENTS: Final = ("left", "center", "right")
@@ -35,6 +36,15 @@ STORAGE_VERSION: Final = 1
 
 FRONTEND_URL: Final = f"/{DOMAIN}"
 FRONTEND_FILE: Final = "thermal-printer-notes-card.js"
+
+
+def source_device_id(entry) -> str:
+    """Return the selected ESPHome device ID for a config entry."""
+    value = entry.options.get(
+        CONF_SOURCE_DEVICE_ID,
+        entry.data.get(CONF_SOURCE_DEVICE_ID, ""),
+    )
+    return str(value or "")
 
 
 def entry_settings(entry) -> dict[str, object]:

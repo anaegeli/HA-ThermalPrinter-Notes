@@ -9,6 +9,9 @@ from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.core import callback
 from homeassistant.helpers.selector import (
     BooleanSelector,
+    DeviceFilterSelectorConfig,
+    DeviceSelector,
+    DeviceSelectorConfig,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -24,6 +27,7 @@ from .const import (
     CONF_HISTORY_LIMIT,
     CONF_PRINT_ACTION,
     CONF_REVERSE_PRINT,
+    CONF_SOURCE_DEVICE_ID,
     DEFAULT_COPIES,
     DEFAULT_CUT,
     DEFAULT_FEED_LINES,
@@ -34,13 +38,28 @@ from .const import (
     MAX_HISTORY_LIMIT,
     MIN_HISTORY_LIMIT,
     entry_settings,
+    source_device_id,
 )
+from .devices import source_device_name, suggested_print_action
 
 
 def _schema(defaults: dict[str, Any]) -> vol.Schema:
     """Build the shared setup/options schema."""
+    device_key = (
+        vol.Required(
+            CONF_SOURCE_DEVICE_ID,
+            default=defaults[CONF_SOURCE_DEVICE_ID],
+        )
+        if defaults.get(CONF_SOURCE_DEVICE_ID)
+        else vol.Required(CONF_SOURCE_DEVICE_ID)
+    )
     return vol.Schema(
         {
+            device_key: DeviceSelector(
+                DeviceSelectorConfig(
+                    filter=DeviceFilterSelectorConfig(integration="esphome")
+                )
+            ),
             vol.Required(
                 CONF_PRINT_ACTION,
                 default=defaults.get(CONF_PRINT_ACTION, DEFAULT_PRINT_ACTION),
@@ -87,6 +106,7 @@ def _schema(defaults: dict[str, Any]) -> vol.Schema:
 def _normalize(user_input: dict[str, Any]) -> dict[str, Any]:
     """Normalize selector values before storing them."""
     return {
+        CONF_SOURCE_DEVICE_ID: str(user_input[CONF_SOURCE_DEVICE_ID]),
         CONF_PRINT_ACTION: str(user_input[CONF_PRINT_ACTION]).strip(),
         CONF_HISTORY_LIMIT: int(user_input[CONF_HISTORY_LIMIT]),
         CONF_COPIES: int(user_input[CONF_COPIES]),
@@ -111,29 +131,48 @@ def _valid_action(value: str) -> bool:
 
 
 class ThermalPrinterNotesConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle the Thermal Printer Notes config flow."""
+    """Handle one config entry per physical printer."""
 
-    VERSION = 1
+    VERSION = 2
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Configure the single integration instance."""
+        """Configure a printer profile."""
         errors: dict[str, str] = {}
+        defaults = dict(user_input or {})
         if user_input is not None:
             data = _normalize(user_input)
+            automatic_action = suggested_print_action(
+                self.hass, data[CONF_SOURCE_DEVICE_ID]
+            )
+            if automatic_action and data[CONF_PRINT_ACTION] in (
+                "",
+                DEFAULT_PRINT_ACTION,
+            ):
+                data[CONF_PRINT_ACTION] = automatic_action
+            await self.async_set_unique_id(data[CONF_SOURCE_DEVICE_ID])
+            self._abort_if_unique_id_configured()
             if not _valid_action(data[CONF_PRINT_ACTION]):
                 errors[CONF_PRINT_ACTION] = "invalid_action"
             else:
                 return self.async_create_entry(
-                    title="Thermal Printer Notes",
-                    data={CONF_PRINT_ACTION: data[CONF_PRINT_ACTION]},
+                    title=source_device_name(
+                        self.hass, data[CONF_SOURCE_DEVICE_ID]
+                    ),
+                    data=data,
                     options=data,
                 )
 
+        if defaults.get(CONF_SOURCE_DEVICE_ID) and not defaults.get(
+            CONF_PRINT_ACTION
+        ):
+            defaults[CONF_PRINT_ACTION] = suggested_print_action(
+                self.hass, str(defaults[CONF_SOURCE_DEVICE_ID])
+            ) or DEFAULT_PRINT_ACTION
         return self.async_show_form(
             step_id="user",
-            data_schema=_schema(user_input or {}),
+            data_schema=_schema(defaults),
             errors=errors,
         )
 
@@ -157,13 +196,39 @@ class ThermalPrinterNotesOptionsFlow(config_entries.OptionsFlowWithReload):
         errors: dict[str, str] = {}
         if user_input is not None:
             data = _normalize(user_input)
-            if not _valid_action(data[CONF_PRINT_ACTION]):
+            automatic_action = suggested_print_action(
+                self.hass, data[CONF_SOURCE_DEVICE_ID]
+            )
+            if automatic_action and data[CONF_PRINT_ACTION] in (
+                "",
+                DEFAULT_PRINT_ACTION,
+            ):
+                data[CONF_PRINT_ACTION] = automatic_action
+            duplicate = any(
+                existing.entry_id != self.config_entry.entry_id
+                and source_device_id(existing) == data[CONF_SOURCE_DEVICE_ID]
+                for existing in self.hass.config_entries.async_entries(DOMAIN)
+            )
+            if duplicate:
+                errors[CONF_SOURCE_DEVICE_ID] = "already_configured"
+            elif not _valid_action(data[CONF_PRINT_ACTION]):
                 errors[CONF_PRINT_ACTION] = "invalid_action"
             else:
+                self.hass.config_entries.async_update_entry(
+                    self.config_entry,
+                    unique_id=data[CONF_SOURCE_DEVICE_ID],
+                    title=source_device_name(
+                        self.hass, data[CONF_SOURCE_DEVICE_ID]
+                    ),
+                )
                 return self.async_create_entry(title="", data=data)
 
+        defaults = {
+            **entry_settings(self.config_entry),
+            CONF_SOURCE_DEVICE_ID: source_device_id(self.config_entry),
+        }
         return self.async_show_form(
             step_id="init",
-            data_schema=_schema(user_input or entry_settings(self.config_entry)),
+            data_schema=_schema(user_input or defaults),
             errors=errors,
         )
