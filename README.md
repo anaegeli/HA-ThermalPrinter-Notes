@@ -9,13 +9,16 @@ Die Integration ist auf den ESPHome-Druckdienst aus dem Projekt `thermal-printer
 - Benutzerabhängige Eingabe und Live-Markdown-Vorschau
 - Keine Benutzer-ID aus dem Browser: Die Zuordnung erfolgt über die authentifizierte Home-Assistant-Sitzung
 - Persönlicher Entwurf mit automatischem Speichern
+- Änderungen werden standardmässig 500 ms nach der letzten Eingabe zwischengespeichert
 - Persönlicher Verlauf; Standardlimit 20, zentral einstellbar von 1 bis 200
+- Der Knopf **Speichern** legt die aktuelle Notiz im persönlichen Verlauf ab, ohne sie zu drucken
 - Der Verlaufseintrag wird **vor** dem Druckaufruf gespeichert
 - Fehlgeschlagene Druckversuche bleiben mit Fehlerstatus erhalten
 - Ausrichtung und Schriftgrösse werden pro Benutzer gespeichert
 - Exemplare, Vorschub, Vorwärts-/Rückwärtsdruck und Schneiden werden zentral in der Integration festgelegt
 - Laden, erneut drucken und löschen einzelner eigener Verlaufseinträge
 - Optionale Druckerstatus-Anzeigen aus bestehenden Home-Assistant-Entitäten
+- Zweispaltiges Dashboard-Panel mit Eingabe links sowie Vorschau und Verlauf rechts
 
 ## Voraussetzungen
 
@@ -51,13 +54,15 @@ Bei Dashboards im Speichermodus registriert die Integration die Karte automatisc
 type: custom:thermal-printer-notes-card
 title: Thermodrucker
 min_lines: 12
-autosave_delay: 1
+autosave_delay_ms: 500
 status_entity: sensor.thermal_printer_status
 ready_entity: binary_sensor.thermal_printer_ready
 queue_entity: sensor.thermal_printer_queue
 ```
 
 Die drei Status-Entitäten sind optional. Nicht benötigte oder bei dir anders benannte Zeilen können entfernt beziehungsweise angepasst werden.
+
+`autosave_delay_ms` kann in der Kartenkonfiguration zwischen 150 und 5000 ms eingestellt werden. Ohne Angabe verwendet die Karte 500 ms. Die ältere Option `autosave_delay` aus Version 0.1.0 wird nicht mehr benötigt.
 
 Bei einem Dashboard im YAML-Modus muss zusätzlich diese Ressource eingetragen werden:
 

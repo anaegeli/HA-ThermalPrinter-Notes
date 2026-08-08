@@ -115,13 +115,14 @@ class UserDataStore:
         user_id: str,
         document: dict[str, Any],
         history_limit: int = DEFAULT_HISTORY_LIMIT,
+        status: str = "pending",
     ) -> dict[str, Any]:
-        """Add a private history snapshot before submitting a print."""
+        """Add a private history snapshot for a save or print operation."""
         normalized = validate_document(document)
         entry: dict[str, Any] = {
             "id": uuid4().hex,
             "created_at": dt_util.utcnow().isoformat(),
-            "status": "pending",
+            "status": status,
             "error": "",
             **normalized,
         }

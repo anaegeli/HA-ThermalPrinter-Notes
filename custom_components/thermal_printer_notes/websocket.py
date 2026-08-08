@@ -15,6 +15,7 @@ from .storage import UserDataStore, ValidationError, validate_document
 
 WS_GET_STATE = f"{DOMAIN}/get_state"
 WS_SAVE_DRAFT = f"{DOMAIN}/save_draft"
+WS_SAVE_HISTORY = f"{DOMAIN}/save_history"
 WS_PRINT = f"{DOMAIN}/print"
 WS_HISTORY_GET = f"{DOMAIN}/history/get"
 WS_HISTORY_DELETE = f"{DOMAIN}/history/delete"
@@ -176,6 +177,37 @@ async def websocket_save_draft(
     connection.send_result(msg["id"], {"draft": saved})
 
 
+@websocket_api.websocket_command(
+    {vol.Required("type"): WS_SAVE_HISTORY, **DOCUMENT_SCHEMA}
+)
+@websocket_api.async_response
+async def websocket_save_history(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Save the draft and a private history snapshot without printing."""
+    try:
+        entry, store = _runtime(hass)
+        user_id, _ = _user(connection)
+        document = _document_from_message(msg)
+        saved = await store.async_save_draft(user_id, document)
+        settings = entry_settings(entry)
+        history = await store.async_add_history(
+            user_id,
+            document,
+            int(settings["history_limit"]),
+            status="saved",
+        )
+    except ValidationError as err:
+        _send_validation_error(connection, msg["id"], err)
+        return
+    except RuntimeError as err:
+        connection.send_error(msg["id"], "not_ready", str(err))
+        return
+    connection.send_result(msg["id"], {"draft": saved, "history": history})
+
+
 @websocket_api.websocket_command({vol.Required("type"): WS_PRINT, **DOCUMENT_SCHEMA})
 @websocket_api.async_response
 async def websocket_print(
@@ -307,6 +339,7 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
     """Register the authenticated frontend API once."""
     websocket_api.async_register_command(hass, websocket_get_state)
     websocket_api.async_register_command(hass, websocket_save_draft)
+    websocket_api.async_register_command(hass, websocket_save_history)
     websocket_api.async_register_command(hass, websocket_print)
     websocket_api.async_register_command(hass, websocket_history_get)
     websocket_api.async_register_command(hass, websocket_history_delete)
