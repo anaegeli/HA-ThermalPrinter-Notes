@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from homeassistant.components import websocket_api
@@ -10,8 +11,16 @@ from homeassistant.core import Context, HomeAssistant
 from homeassistant.util import dt as dt_util
 import voluptuous as vol
 
-from .const import DOMAIN, MAX_MARKDOWN_LENGTH, entry_settings
+from .const import (
+    DOMAIN,
+    MAX_MARKDOWN_LENGTH,
+    entry_settings,
+    source_device_id,
+)
+from .devices import suggested_print_action
 from .storage import UserDataStore, ValidationError, validate_document
+
+_LOGGER = logging.getLogger(__name__)
 
 WS_LIST_PRINTERS = f"{DOMAIN}/list_printers"
 WS_GET_STATE = f"{DOMAIN}/get_state"
@@ -77,6 +86,74 @@ def _action_parts(action: object) -> tuple[str, str]:
     return domain, service
 
 
+def _resolved_print_action(hass: HomeAssistant, entry: ConfigEntry) -> str:
+    """Return an available configured or automatically discovered action."""
+    configured = str(entry_settings(entry)["print_action"])
+    automatic = suggested_print_action(hass, source_device_id(entry))
+    for action in dict.fromkeys((configured, automatic)):
+        if not action or action.count(".") != 1:
+            continue
+        domain, service = _action_parts(action)
+        if hass.services.has_service(domain, service):
+            if action != configured:
+                _LOGGER.warning(
+                    "Configured print action %s is unavailable; using %s",
+                    configured,
+                    action,
+                )
+            return action
+    raise RuntimeError(
+        f"Druckaktion '{configured}' ist in Home Assistant nicht verfügbar. "
+        "Bitte den ESPHome-Drucker unter Geräte & Dienste konfigurieren."
+    )
+
+
+def _public_print_error(err: Exception) -> str:
+    """Return a useful bounded error for the authenticated card user."""
+    detail = " ".join(str(err).split())[:400]
+    return (
+        f"Die Druckaktion ist fehlgeschlagen: {detail}"
+        if detail
+        else "Die Druckaktion ist ohne Fehlermeldung fehlgeschlagen"
+    )
+
+
+def _adapt_service_data(
+    hass: HomeAssistant,
+    domain: str,
+    service: str,
+    service_data: dict[str, Any],
+) -> dict[str, Any]:
+    """Adapt fields to the ESPHome action schema currently registered in HA."""
+    registered = hass.services.async_services().get(domain, {}).get(service)
+    schema = getattr(getattr(registered, "schema", None), "schema", None)
+    if not isinstance(schema, dict):
+        return service_data
+    allowed = {
+        str(getattr(marker, "schema", marker))
+        for marker in schema
+        if isinstance(getattr(marker, "schema", marker), str)
+    }
+    if not allowed:
+        return service_data
+
+    adapted = dict(service_data)
+    if "markdown_content" not in allowed:
+        for alias in ("text", "markdown"):
+            if alias in allowed:
+                adapted[alias] = adapted["markdown_content"]
+                break
+    dropped = sorted(set(adapted) - allowed)
+    if dropped:
+        _LOGGER.debug(
+            "Omitting unsupported fields for %s.%s: %s",
+            domain,
+            service,
+            ", ".join(dropped),
+        )
+    return {key: value for key, value in adapted.items() if key in allowed}
+
+
 def _print_markdown(document: dict[str, Any]) -> str:
     """Build the printer Markdown while keeping the title optional."""
     title = str(document.get("title", "")).strip()
@@ -97,7 +174,7 @@ async def _submit_print(
     history = await store.async_add_history(
         user_id, document, int(settings["history_limit"])
     )
-    domain, service = _action_parts(settings["print_action"])
+    domain, service = _action_parts(_resolved_print_action(hass, entry))
     service_data = {
         "markdown_content": _print_markdown(document),
         "print_user": user_name,
@@ -110,10 +187,13 @@ async def _submit_print(
         "cut": settings["cut"],
     }
     try:
+        compatible_service_data = _adapt_service_data(
+            hass, domain, service, service_data
+        )
         await hass.services.async_call(
             domain,
             service,
-            service_data,
+            compatible_service_data,
             blocking=True,
             context=Context(user_id=user_id),
         )
@@ -281,11 +361,12 @@ async def websocket_print(
     except RuntimeError as err:
         connection.send_error(msg["id"], "not_ready", str(err))
         return
-    except Exception:
+    except Exception as err:
+        _LOGGER.exception("Thermal printer action failed")
         connection.send_error(
             msg["id"],
             "print_failed",
-            "Die konfigurierte Druckaktion ist fehlgeschlagen",
+            _public_print_error(err),
         )
         return
     connection.send_result(msg["id"], {"history": history})
@@ -398,11 +479,12 @@ async def websocket_history_print(
     except RuntimeError as err:
         connection.send_error(msg["id"], "not_ready", str(err))
         return
-    except Exception:
+    except Exception as err:
+        _LOGGER.exception("Thermal printer history action failed")
         connection.send_error(
             msg["id"],
             "print_failed",
-            "Die konfigurierte Druckaktion ist fehlgeschlagen",
+            _public_print_error(err),
         )
         return
     connection.send_result(msg["id"], {"history": history})

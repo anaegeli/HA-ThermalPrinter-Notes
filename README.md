@@ -87,7 +87,7 @@ Text im Eingabefeld markieren und einen Knopf drücken. Die Karte setzt die zum 
 
 ## Textgrenze und ESPHome-Dateien
 
-Version 0.2.0 erhöht die zulässige Quelle von 4.096 auf **16.384 UTF-8-Bytes**. Das ist eine bewusst konservative Obergrenze für den ESP32-POE-ISO ohne PSRAM. Der Treiber rendert einen Auftrag nur einmal; mehrere Exemplare teilen denselben Druckpuffer. Zusätzlich begrenzen ein 96-KiB-Limit für den gerenderten Auftrag und ein 128-KiB-Limit für die Warteschlange den Heap-Verbrauch.
+Version 0.2.x erhöht die zulässige Quelle von 4.096 auf **16.384 UTF-8-Bytes**. Das ist eine bewusst konservative Obergrenze für den ESP32-POE-ISO ohne PSRAM. Der Treiber rendert einen Auftrag nur einmal; mehrere Exemplare teilen denselben Druckpuffer. Zusätzlich begrenzen ein 96-KiB-Limit für den gerenderten Auftrag und ein 128-KiB-Limit für die Warteschlange den Heap-Verbrauch.
 
 Die Referenzdateien liegen unter `esphome/`. `thermal_printer.h` muss zur ESPHome-Konfiguration kopiert und die Firmware anschliessend vom Benutzer kompiliert/übertragen werden. Die HACS-Installation aktualisiert ESPHome-Dateien nicht automatisch.
 
