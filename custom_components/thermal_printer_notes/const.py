@@ -6,7 +6,7 @@ from typing import Final
 
 DOMAIN: Final = "thermal_printer_notes"
 NAME: Final = "Thermal Printer Notes"
-VERSION: Final = "0.2.1"
+VERSION: Final = "0.3.0"
 
 CONF_SOURCE_DEVICE_ID: Final = "source_device_id"
 CONF_PRINT_ACTION: Final = "print_action"
@@ -29,7 +29,7 @@ MAX_MARKDOWN_LENGTH: Final = 16384
 MAX_TITLE_LENGTH: Final = 80
 
 ALIGNMENTS: Final = ("left", "center", "right")
-SIZES: Final = ("normal", "double_width", "double_size")
+SIZES: Final = ("small", "normal", "double_width", "double_size")
 
 STORAGE_KEY: Final = DOMAIN
 STORAGE_VERSION: Final = 1
