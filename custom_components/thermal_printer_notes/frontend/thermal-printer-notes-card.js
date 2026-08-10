@@ -1,5 +1,7 @@
 /* Thermal Printer Notes card - no build step required. */
 
+import { detectLanguage, translate } from "./translations.js";
+
 const panel = customElements.get("ha-panel-lovelace");
 const fallback = customElements.get("hui-masonry-view") || customElements.get("hui-view");
 const LitElement = window.LitElement || Object.getPrototypeOf(panel || fallback);
@@ -165,7 +167,7 @@ class ThermalPrinterNotesCard extends LitElement {
   }
 
   setConfig(config) {
-    if (!config) throw new Error("Karteneinstellungen fehlen");
+    if (!config) throw new Error(translate(detectLanguage(), "card.config_missing"));
     const previousDevice = this._config?.device_id || "";
     const columns = Math.min(3, Math.max(1, Number(config.columns || 2)));
     this._config = { ...config, device_id: config.device_id || "", columns };
@@ -188,6 +190,7 @@ class ThermalPrinterNotesCard extends LitElement {
   static getStubConfig() { return { device_id: "", columns: 2 }; }
 
   static getConfigForm() {
+    const t = (key) => translate(detectLanguage(), key);
     return {
       schema: [
         { name: "device_id", required: true, selector: { device: { filter: { integration: "thermal_printer_notes" } } } },
@@ -198,22 +201,26 @@ class ThermalPrinterNotesCard extends LitElement {
             select: {
               mode: "dropdown",
               options: [
-                { value: "1", label: "1 Spalte" },
-                { value: "2", label: "2 Spalten" },
-                { value: "3", label: "3 Spalten" },
+                { value: "1", label: t("config.columns_1") },
+                { value: "2", label: t("config.columns_2") },
+                { value: "3", label: t("config.columns_3") },
               ],
             },
           },
         },
       ],
-      computeLabel: (schema) => ({ device_id: "Drucker", columns: "Dashboard-Layout" })[schema.name],
+      computeLabel: (schema) => ({ device_id: t("config.device"), columns: t("config.layout") })[schema.name],
       computeHelper: (schema) => schema.name === "device_id"
-        ? "Drucker, Status und zentrale Vorgaben werden automatisch übernommen."
-        : "Auf schmalen Bildschirmen wird automatisch gestapelt.",
+        ? t("config.device_helper")
+        : t("config.layout_helper"),
     };
   }
 
   _emptyDraft() { return { title: "", markdown: "", alignment: "left", size: "normal" }; }
+
+  _language() { return detectLanguage(this._hass); }
+
+  _t(key, replacements = {}) { return translate(this._language(), key, replacements); }
 
   _resetForPrinter() {
     clearTimeout(this._saveTimer);
@@ -227,7 +234,7 @@ class ThermalPrinterNotesCard extends LitElement {
   }
 
   async _request(type, extra = {}) {
-    if (!this._hass?.connection) throw new Error("Home Assistant ist nicht verbunden");
+    if (!this._hass?.connection) throw new Error(this._t("error.not_connected"));
     return this._hass.connection.sendMessagePromise({
       type,
       device_id: this._config?.device_id || "",
@@ -243,7 +250,7 @@ class ThermalPrinterNotesCard extends LitElement {
       this._applyState(state);
       this._loaded = true;
     } catch (err) {
-      this._showError(err, "Druckerdaten konnten nicht geladen werden");
+      this._showError(err, "error.load_state");
     } finally {
       this._loading = false;
       this.requestUpdate();
@@ -290,11 +297,11 @@ class ThermalPrinterNotesCard extends LitElement {
     });
     try {
       await this._savePromise;
-      if (notify) this._showMessage("Entwurf gespeichert");
+      if (notify) this._showMessage(this._t("success.draft_saved"));
       return true;
     } catch (err) {
       this._savePromise = Promise.resolve();
-      this._showError(err, "Entwurf konnte nicht gespeichert werden");
+      this._showError(err, "error.save_draft");
       return false;
     } finally {
       this._saving = false;
@@ -312,10 +319,10 @@ class ThermalPrinterNotesCard extends LitElement {
       const result = await this._request("thermal_printer_notes/save_history", this._documentPayload());
       if (result?.draft?.updated_at) this._draft = { ...this._draft, updated_at: result.draft.updated_at };
       await this._refreshHistory();
-      this._showMessage("Notiz gespeichert und dem persönlichen Verlauf hinzugefügt");
+      this._showMessage(this._t("success.history_saved"));
     } catch (err) {
       this._savePromise = Promise.resolve();
-      this._showError(err, "Notiz konnte nicht im Verlauf gespeichert werden");
+      this._showError(err, "error.save_history");
     } finally {
       this._saving = false;
       this.requestUpdate();
@@ -329,11 +336,11 @@ class ThermalPrinterNotesCard extends LitElement {
     this._message = "";
     try {
       await this._request("thermal_printer_notes/print", this._documentPayload());
-      this._showMessage("Druck übermittelt und zuvor im persönlichen Verlauf gespeichert");
+      this._showMessage(this._t("success.print_submitted"));
     } catch (err) {
-      this._showError(err, "Drucken fehlgeschlagen; der Versuch bleibt im Verlauf");
+      this._showError(err, "error.print");
     }
-    try { await this._refreshHistory(); } catch (err) { this._showError(err, "Verlauf konnte nicht aktualisiert werden"); }
+    try { await this._refreshHistory(); } catch (err) { this._showError(err, "error.refresh_history"); }
     this._busy = false;
     this.requestUpdate();
   }
@@ -349,7 +356,7 @@ class ThermalPrinterNotesCard extends LitElement {
     try {
       const text = await navigator.clipboard.readText();
       this._insertAtSelection(text, "");
-    } catch (err) { this._showError(err, "Zwischenablage konnte nicht gelesen werden"); }
+    } catch (err) { this._showError(err, "error.clipboard"); }
   }
 
   _clearEditor() { this._draft = this._emptyDraft(); this._selection = { start: 0, end: 0 }; this._scheduleSave(); }
@@ -358,12 +365,12 @@ class ThermalPrinterNotesCard extends LitElement {
     this._selection = { start: event.target.selectionStart || 0, end: event.target.selectionEnd || 0 };
   }
 
-  _insertAtSelection(prefix, suffix = prefix, placeholder = "Text") {
+  _insertAtSelection(prefix, suffix = prefix, placeholder = undefined) {
     const value = this._draft.markdown || "";
     const textarea = this.renderRoot?.querySelector("#note-markdown");
     const start = textarea?.selectionStart ?? this._selection.start ?? value.length;
     const end = textarea?.selectionEnd ?? this._selection.end ?? start;
-    const selected = value.slice(start, end) || placeholder;
+    const selected = value.slice(start, end) || placeholder || this._t("placeholder.text");
     const replacement = `${prefix}${selected}${suffix}`;
     this._updateDraft("markdown", `${value.slice(0, start)}${replacement}${value.slice(end)}`);
     const selectStart = start + prefix.length;
@@ -376,7 +383,7 @@ class ThermalPrinterNotesCard extends LitElement {
     });
   }
 
-  _prefixLines(prefix, placeholder = "Text") {
+  _prefixLines(prefix, placeholder = undefined) {
     const value = this._draft.markdown || "";
     const textarea = this.renderRoot?.querySelector("#note-markdown");
     let start = textarea?.selectionStart ?? this._selection.start ?? value.length;
@@ -384,7 +391,7 @@ class ThermalPrinterNotesCard extends LitElement {
     start = value.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
     const nextBreak = value.indexOf("\n", end);
     end = nextBreak === -1 ? value.length : nextBreak;
-    const selected = value.slice(start, end) || placeholder;
+    const selected = value.slice(start, end) || placeholder || this._t("placeholder.text");
     const replacement = selected.split("\n").map((line) => `${prefix}${line}`).join("\n");
     this._updateDraft("markdown", `${value.slice(0, start)}${replacement}${value.slice(end)}`);
     this.updateComplete.then(() => {
@@ -399,50 +406,63 @@ class ThermalPrinterNotesCard extends LitElement {
       const item = result.history;
       this._draft = { title: item.title || "", markdown: item.markdown || "", alignment: item.alignment || "left", size: item.size || "normal" };
       if (await this._saveDraft(false)) {
-        this._showMessage("Verlaufseintrag in die Eingabe geladen");
+        this._showMessage(this._t("success.history_loaded"));
         this.scrollIntoView({ behavior: "smooth", block: "start" });
       }
-    } catch (err) { this._showError(err, "Verlaufseintrag konnte nicht geladen werden"); }
+    } catch (err) { this._showError(err, "error.load_history"); }
   }
 
   async _reprintHistory(historyId) {
     this._busy = true;
     try {
       await this._request("thermal_printer_notes/history/print", { history_id: historyId });
-      this._showMessage("Erneuter Druck wurde übermittelt");
-    } catch (err) { this._showError(err, "Erneuter Druck fehlgeschlagen"); }
-    try { await this._refreshHistory(); } catch (err) { this._showError(err, "Verlauf konnte nicht aktualisiert werden"); }
+      this._showMessage(this._t("success.reprint_submitted"));
+    } catch (err) { this._showError(err, "error.reprint"); }
+    try { await this._refreshHistory(); } catch (err) { this._showError(err, "error.refresh_history"); }
     this._busy = false; this.requestUpdate();
   }
 
   async _deleteHistory(historyId) {
-    if (!confirm("Diesen persönlichen Verlaufseintrag löschen?")) return;
+    if (!confirm(this._t("confirm.delete_history"))) return;
     try {
       await this._request("thermal_printer_notes/history/delete", { history_id: historyId });
       await this._refreshHistory();
-    } catch (err) { this._showError(err, "Verlaufseintrag konnte nicht gelöscht werden"); }
+    } catch (err) { this._showError(err, "error.delete_history"); }
   }
 
   async _clearHistory() {
-    if (!confirm("Deinen gesamten persönlichen Verlauf unwiderruflich löschen?")) return;
+    if (!confirm(this._t("confirm.clear_history"))) return;
     try {
       await this._request("thermal_printer_notes/history/clear");
-      this._history = []; this._showMessage("Dein persönlicher Verlauf wurde gelöscht");
-    } catch (err) { this._showError(err, "Verlauf konnte nicht gelöscht werden"); }
+      this._history = []; this._showMessage(this._t("success.history_cleared"));
+    } catch (err) { this._showError(err, "error.clear_history"); }
   }
 
   _showMessage(message) { this._message = message; this._messageType = "success"; this.requestUpdate(); }
-  _showError(err, fallback) { this._message = err?.message ? `${fallback}: ${err.message}` : fallback; this._messageType = "error"; this.requestUpdate(); }
+  _showError(err, fallbackKey) {
+    const fallback = this._t(fallbackKey);
+    const localizedCode = err?.code ? this._t(`error.${err.code}`) : "";
+    const hasLocalizedCode = localizedCode && localizedCode !== `error.${err?.code}`;
+    const detail = hasLocalizedCode ? localizedCode : err?.message;
+    this._message = detail && detail !== fallback ? `${fallback}: ${detail}` : fallback;
+    this._messageType = "error";
+    this.requestUpdate();
+  }
   _utf8Length(value) { return new TextEncoder().encode(value || "").length; }
   _printableSource() { const title = (this._draft.title || "").trim(); return title ? `# ${title}\n${this._draft.markdown || ""}` : this._draft.markdown || ""; }
   _printableBytes() { return this._utf8Length(this._printableSource()); }
-  _checkLength() { if (this._printableBytes() <= this._maxBytes) return true; this._showError(null, `Der Text überschreitet ${this._maxBytes} UTF-8-Bytes`); return false; }
+  _checkLength() {
+    if (this._printableBytes() <= this._maxBytes) return true;
+    this._showMessage(this._t("error.too_long", { bytes: this._maxBytes }));
+    this._messageType = "error";
+    return false;
+  }
 
   _statusEntities() {
     return [
-      ["Status", this._printer.status_entity],
-      ["Bereit", this._printer.ready_entity],
-      ["Warteschlange", this._printer.queue_entity],
+      [this._t("status.status"), this._printer.status_entity],
+      [this._t("status.ready"), this._printer.ready_entity],
+      [this._t("status.queue"), this._printer.queue_entity],
     ];
   }
 
@@ -450,13 +470,13 @@ class ThermalPrinterNotesCard extends LitElement {
     return html`<div class="status-grid">${this._statusEntities().map(([label, entityId]) => {
       const state = entityId ? this._hass?.states?.[entityId] : undefined;
       const value = state ? this._hass.formatEntityState?.(state) || state.state : "–";
-      return html`<div class="status-chip" title=${entityId || "Nicht automatisch gefunden"}><span class="status-label">${label}</span><span class="status-value">${value}</span></div>`;
+      return html`<div class="status-chip" title=${entityId || this._t("status.not_found")}><span class="status-label">${label}</span><span class="status-value">${value}</span></div>`;
     })}</div>`;
   }
 
   _formatDate(value) {
     if (!value) return "";
-    return new Intl.DateTimeFormat("de-CH", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+    return new Intl.DateTimeFormat(this._language() === "de" ? "de-CH" : "en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
   }
 
   _printTime() {
@@ -508,13 +528,26 @@ class ThermalPrinterNotesCard extends LitElement {
     rows.push({ chars: this._printerChars(headerLeft + headerRight), columns: 42, cell: 9, glyph: 17, line: 23, align: "left", font: "small" });
 
     for (const raw of this._printableSource().split("\n")) {
-      if (/^[ \t]*$/.test(raw)) { rows.push({ chars: [], columns: 32, cell: 12, glyph: 24, line: this._draft.size === "double_size" ? 54 : 30, align: this._draft.alignment }); continue; }
+      const small = this._draft.size === "small";
+      if (/^[ \t]*$/.test(raw)) {
+        rows.push({
+          chars: [],
+          columns: small ? 42 : 32,
+          cell: small ? 9 : 12,
+          glyph: small ? 17 : 24,
+          line: this._draft.size === "double_size" ? 54 : small ? 23 : 30,
+          align: this._draft.alignment,
+          font: small ? "small" : "normal",
+        });
+        continue;
+      }
       const qr = raw.match(/^(?:QR: |\[QR]\()(.+?)(?:\))?$/);
       if (qr) { rows.push({ qr: qr[1], line: 178 }); continue; }
-      let text = raw; let columns = this._draft.size === "normal" ? 32 : 16;
-      let cell = columns === 32 ? 12 : 24;
-      let glyph = this._draft.size === "double_size" ? 48 : 24;
-      let line = this._draft.size === "double_size" ? 54 : 30;
+      let text = raw;
+      let columns = small ? 42 : this._draft.size === "normal" ? 32 : 16;
+      let cell = small ? 9 : columns === 32 ? 12 : 24;
+      let glyph = small ? 17 : this._draft.size === "double_size" ? 48 : 24;
+      let line = small ? 23 : this._draft.size === "double_size" ? 54 : 30;
       let align = this._draft.alignment; let bold = false; let underline = false;
       if (raw.startsWith("### ")) { text = raw.slice(4); columns = 32; cell = 12; glyph = 24; line = 30; align = "left"; bold = true; underline = true; }
       else if (raw.startsWith("## ")) { text = raw.slice(3); columns = 16; cell = 24; glyph = 24; line = 30; align = "center"; bold = true; }
@@ -522,7 +555,7 @@ class ThermalPrinterNotesCard extends LitElement {
       else if (["---", "___", "***"].includes(raw)) { text = "-".repeat(32); columns = 32; cell = 12; glyph = 24; line = 30; align = "left"; }
       else if (/^- \[[ xX]]/.test(raw)) { text = `${/[xX]/.test(raw[3]) ? "[x]" : "[ ]"} ${raw.slice(6)}`; }
       else if (/^[-*] /.test(raw)) { text = `• ${raw.slice(2)}`; }
-      for (const chars of this._wrapChars(this._printerChars(text, bold, underline), columns)) rows.push({ chars, columns, cell, glyph, line, align });
+      for (const chars of this._wrapChars(this._printerChars(text, bold, underline), columns)) rows.push({ chars, columns, cell, glyph, line, align, font: small ? "small" : "normal" });
     }
     return rows;
   }
@@ -596,28 +629,28 @@ class ThermalPrinterNotesCard extends LitElement {
             width="384"
             height=${String(chunk.height)}
             role="img"
-            aria-label=${`Druckvorschau, Abschnitt ${index + 1}`}
+            aria-label=${this._t("preview.section", { number: index + 1 })}
           ></canvas>
         `)}
-        <div class="paper-note">EP-261C · 384 Punkte · 32/42 Zeichen</div>
+        <div class="paper-note">${this._t("preview.profile")}</div>
       </div></div>`;
   }
 
-  _statusLabel(status) { return ({ saved: "Gespeichert", submitted: "Übermittelt", failed: "Fehlgeschlagen" })[status] || "Wartet"; }
-  _alignmentLabel(value) { return ({ left: "Links", center: "Zentriert", right: "Rechts" })[value] || value; }
-  _sizeLabel(value) { return ({ normal: "Normal", double_width: "Doppelte Breite", double_size: "Doppelte Grösse" })[value] || value; }
+  _statusLabel(status) { return this._t(`history.status_${["saved", "submitted", "failed"].includes(status) ? status : "pending"}`); }
+  _alignmentLabel(value) { return this._t(`alignment.${value}`); }
+  _sizeLabel(value) { return this._t(`size.${value}`); }
 
   _renderHistory() {
     if (!this._historyOpen) return "";
     return html`<div class="history-list">
-      <div class="history-tools"><span class="history-date">Max. ${this._settings.history_limit ?? 20} Einträge</span><button class="danger" @click=${this._clearHistory} ?disabled=${!this._history.length}><ha-icon icon="mdi:delete-sweep-outline"></ha-icon> Alle löschen</button></div>
+      <div class="history-tools"><span class="history-date">${this._t("history.maximum", { count: this._settings.history_limit ?? 20 })}</span><button class="danger" @click=${this._clearHistory} ?disabled=${!this._history.length}><ha-icon icon="mdi:delete-sweep-outline"></ha-icon> ${this._t("history.delete_all")}</button></div>
       ${this._history.length ? this._history.map((item) => html`
         <div class="history-item">
-          <div class="history-meta"><div><div class="history-title">${item.title || "Ohne Titel"}</div><div class="history-date">${this._formatDate(item.created_at)}</div></div><span class="badge ${item.status}" title=${item.error || ""}>${this._statusLabel(item.status)}</span></div>
-          <div class="history-preview">${item.preview || "(leer)"}</div>
+          <div class="history-meta"><div><div class="history-title">${item.title || this._t("history.untitled")}</div><div class="history-date">${this._formatDate(item.created_at)}</div></div><span class="badge ${item.status}" title=${item.status === "failed" ? this._t("error.print_failed") : ""}>${this._statusLabel(item.status)}</span></div>
+          <div class="history-preview">${item.preview || this._t("history.empty_note")}</div>
           <div class="history-options">${this._alignmentLabel(item.alignment)} · ${this._sizeLabel(item.size)}</div>
-          <div class="history-actions"><button @click=${() => this._loadHistory(item.id)}><ha-icon icon="mdi:file-restore-outline"></ha-icon> Laden</button><button @click=${() => this._reprintHistory(item.id)} ?disabled=${this._busy}><ha-icon icon="mdi:printer-outline"></ha-icon> Erneut</button><button class="icon-only danger" title="Löschen" @click=${() => this._deleteHistory(item.id)}><ha-icon icon="mdi:delete-outline"></ha-icon></button></div>
-        </div>`) : html`<div class="empty">Noch keine persönlichen Einträge vorhanden.</div>`}
+          <div class="history-actions"><button @click=${() => this._loadHistory(item.id)}><ha-icon icon="mdi:file-restore-outline"></ha-icon> ${this._t("history.load")}</button><button @click=${() => this._reprintHistory(item.id)} ?disabled=${this._busy}><ha-icon icon="mdi:printer-outline"></ha-icon> ${this._t("history.reprint")}</button><button class="icon-only danger" title=${this._t("history.delete")} @click=${() => this._deleteHistory(item.id)}><ha-icon icon="mdi:delete-outline"></ha-icon></button></div>
+        </div>`) : html`<div class="empty">${this._t("history.empty")}</div>`}
     </div>`;
   }
 
@@ -626,48 +659,48 @@ class ThermalPrinterNotesCard extends LitElement {
   }
 
   _renderMarkdownTools() {
-    return html`<div class="markdown-tools" aria-label="Markdown-Formatierung">
-      ${this._toolButton("mdi:format-header-1", "Überschrift 1", () => this._prefixLines("# "))}
-      ${this._toolButton("mdi:format-header-2", "Überschrift 2", () => this._prefixLines("## "))}
-      ${this._toolButton("mdi:format-header-3", "Überschrift 3", () => this._prefixLines("### "))}
+    return html`<div class="markdown-tools" aria-label=${this._t("tools.formatting")}>
+      ${this._toolButton("mdi:format-header-1", this._t("tools.heading_1"), () => this._prefixLines("# "))}
+      ${this._toolButton("mdi:format-header-2", this._t("tools.heading_2"), () => this._prefixLines("## "))}
+      ${this._toolButton("mdi:format-header-3", this._t("tools.heading_3"), () => this._prefixLines("### "))}
       <span class="divider"></span>
-      ${this._toolButton("mdi:format-bold", "Fett", () => this._insertAtSelection("**", "**"))}
-      ${this._toolButton("mdi:format-underline", "Unterstrichen (ein Stern im Drucker-Markdown)", () => this._insertAtSelection("*", "*"))}
+      ${this._toolButton("mdi:format-bold", this._t("tools.bold"), () => this._insertAtSelection("**", "**"))}
+      ${this._toolButton("mdi:format-underline", this._t("tools.underline"), () => this._insertAtSelection("*", "*"))}
       <span class="divider"></span>
-      ${this._toolButton("mdi:format-list-bulleted", "Aufzählung", () => this._prefixLines("- "))}
-      ${this._toolButton("mdi:format-list-numbered", "Nummerierte Liste", () => this._prefixLines("1. "))}
-      ${this._toolButton("mdi:checkbox-marked-outline", "Checkliste", () => this._prefixLines("- [ ] "))}
-      ${this._toolButton("mdi:link-variant", "Link", () => this._insertAtSelection("[", "](https://)", "Linktext"))}
-      ${this._toolButton("mdi:minus", "Trennlinie", () => this._insertAtSelection("\n---\n", "", ""))}
-      ${this._toolButton("mdi:qrcode", "QR-Code", () => this._insertAtSelection("QR: ", "", "https://"))}
+      ${this._toolButton("mdi:format-list-bulleted", this._t("tools.bulleted_list"), () => this._prefixLines("- "))}
+      ${this._toolButton("mdi:format-list-numbered", this._t("tools.numbered_list"), () => this._prefixLines("1. "))}
+      ${this._toolButton("mdi:checkbox-marked-outline", this._t("tools.checklist"), () => this._prefixLines("- [ ] "))}
+      ${this._toolButton("mdi:link-variant", this._t("tools.link"), () => this._insertAtSelection("[", "](https://)", this._t("placeholder.link_text")))}
+      ${this._toolButton("mdi:minus", this._t("tools.separator"), () => this._insertAtSelection("\n---\n", "", ""))}
+      ${this._toolButton("mdi:qrcode", this._t("tools.qr_code"), () => this._insertAtSelection("QR: ", "", "https://"))}
     </div>`;
   }
 
   render() {
     if (!this._config) return html``;
-    if (!this._loaded) return html`<ha-card><div class="loading">${this._message || "Persönliche Druckdaten werden geladen …"}</div></ha-card>`;
+    if (!this._loaded) return html`<ha-card><div class="loading">${this._message || this._t("loading.personal_data")}</div></ha-card>`;
     const bytes = this._printableBytes();
     return html`<ha-card><div class="content">
-      <div class="head"><div><div class="title">${this._printer.name || "Thermodrucker"}</div><div class="muted">Persönliche Notizen und Druckverlauf</div></div><div class="user"><ha-icon icon="mdi:account-outline"></ha-icon>${this._userName}</div></div>
+      <div class="head"><div><div class="title">${this._printer.name || this._t("header.default_printer")}</div><div class="muted">${this._t("header.subtitle")}</div></div><div class="user"><ha-icon icon="mdi:account-outline"></ha-icon>${this._userName}</div></div>
       ${this._renderStatus()}
       ${this._message ? html`<div class="message ${this._messageType}">${this._message}</div>` : ""}
       <div class="workspace" data-columns=${String(this._config.columns)}>
         <section class="editor">
-          <div class="field"><label for="note-title">Titel (optional)</label><input id="note-title" maxlength="80" autocomplete="off" .value=${this._draft.title || ""} @input=${(event) => this._updateDraft("title", event.target.value)} placeholder="Titel des Ausdrucks" /></div>
-          <div class="field"><label for="note-markdown">Markdown-Text</label>${this._renderMarkdownTools()}<textarea id="note-markdown" autocomplete="off" .value=${this._draft.markdown || ""} @input=${(event) => { this._captureSelection(event); this._updateDraft("markdown", event.target.value); }} @select=${this._captureSelection} @click=${this._captureSelection} @keyup=${this._captureSelection} placeholder="# Überschrift\nDein Text …"></textarea><div class="count ${bytes > this._maxBytes ? "invalid" : ""}">${bytes.toLocaleString("de-CH")} / ${this._maxBytes.toLocaleString("de-CH")} UTF-8-Bytes</div></div>
+          <div class="field"><label for="note-title">${this._t("field.title")}</label><input id="note-title" maxlength="80" autocomplete="off" .value=${this._draft.title || ""} @input=${(event) => this._updateDraft("title", event.target.value)} placeholder=${this._t("field.title_placeholder")} /></div>
+          <div class="field"><label for="note-markdown">${this._t("field.markdown")}</label>${this._renderMarkdownTools()}<textarea id="note-markdown" autocomplete="off" .value=${this._draft.markdown || ""} @input=${(event) => { this._captureSelection(event); this._updateDraft("markdown", event.target.value); }} @select=${this._captureSelection} @click=${this._captureSelection} @keyup=${this._captureSelection} placeholder=${this._t("field.markdown_placeholder")}></textarea><div class="count ${bytes > this._maxBytes ? "invalid" : ""}">${bytes.toLocaleString(this._language() === "de" ? "de-CH" : "en-GB")} / ${this._maxBytes.toLocaleString(this._language() === "de" ? "de-CH" : "en-GB")} UTF-8-Bytes</div></div>
           <div class="editor-controls">
-            <button @click=${this._paste}><ha-icon icon="mdi:content-paste"></ha-icon>Einfügen</button>
-            <button @click=${this._saveToHistory} ?disabled=${this._saving || this._busy || bytes > this._maxBytes}><ha-icon icon="mdi:content-save-outline"></ha-icon>Speichern</button>
-            <button class="danger" @click=${this._clearEditor}><ha-icon icon="mdi:eraser"></ha-icon>Leeren</button>
-            <div class="compact-field"><label for="note-alignment">Ausrichtung</label><select id="note-alignment" .value=${this._draft.alignment} @change=${(event) => this._updateDraft("alignment", event.target.value)}><option value="left">Links</option><option value="center">Zentriert</option><option value="right">Rechts</option></select></div>
-            <div class="compact-field"><label for="note-size">Schriftgrösse</label><select id="note-size" .value=${this._draft.size} @change=${(event) => this._updateDraft("size", event.target.value)}><option value="normal">Normal</option><option value="double_width">Doppelte Breite</option><option value="double_size">Doppelte Grösse</option></select></div>
+            <button @click=${this._paste}><ha-icon icon="mdi:content-paste"></ha-icon>${this._t("action.paste")}</button>
+            <button @click=${this._saveToHistory} ?disabled=${this._saving || this._busy || bytes > this._maxBytes}><ha-icon icon="mdi:content-save-outline"></ha-icon>${this._t("action.save")}</button>
+            <button class="danger" @click=${this._clearEditor}><ha-icon icon="mdi:eraser"></ha-icon>${this._t("action.clear")}</button>
+            <div class="compact-field"><label for="note-alignment">${this._t("field.alignment")}</label><select id="note-alignment" .value=${this._draft.alignment} @change=${(event) => this._updateDraft("alignment", event.target.value)}><option value="left">${this._t("alignment.left")}</option><option value="center">${this._t("alignment.center")}</option><option value="right">${this._t("alignment.right")}</option></select></div>
+            <div class="compact-field"><label for="note-size">${this._t("field.size")}</label><select id="note-size" .value=${this._draft.size} @change=${(event) => this._updateDraft("size", event.target.value)}><option value="small">${this._t("size.small")}</option><option value="normal">${this._t("size.normal")}</option><option value="double_width">${this._t("size.double_width")}</option><option value="double_size">${this._t("size.double_size")}</option></select></div>
           </div>
-          <div class="print-row"><span class="save-state">${this._saving ? "Wird gespeichert …" : "Automatisch nach 500 ms gespeichert"}</span><button class="primary" @click=${this._print} ?disabled=${this._busy || bytes > this._maxBytes}><ha-icon icon="mdi:printer"></ha-icon>${this._busy ? "Wird gedruckt …" : "Drucken"}</button></div>
+          <div class="print-row"><span class="save-state">${this._saving ? this._t("autosave.saving") : this._t("autosave.idle")}</span><button class="primary" @click=${this._print} ?disabled=${this._busy || bytes > this._maxBytes}><ha-icon icon="mdi:printer"></ha-icon>${this._busy ? this._t("action.printing") : this._t("action.print")}</button></div>
         </section>
-        <section class="preview"><div class="section-title"><ha-icon icon="mdi:eye-outline"></ha-icon>Druckvorschau</div>${this._renderPreview()}</section>
-        <section class="history-panel"><div class="history-head" @click=${() => { this._historyOpen = !this._historyOpen; }}><div class="section-title" style="margin:0"><ha-icon icon="mdi:history"></ha-icon>Mein Verlauf (${this._history.length})</div><ha-icon icon=${this._historyOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></div>${this._renderHistory()}</section>
+        <section class="preview"><div class="section-title"><ha-icon icon="mdi:eye-outline"></ha-icon>${this._t("preview.title")}</div>${this._renderPreview()}</section>
+        <section class="history-panel"><div class="history-head" @click=${() => { this._historyOpen = !this._historyOpen; }}><div class="section-title" style="margin:0"><ha-icon icon="mdi:history"></ha-icon>${this._t("history.title", { count: this._history.length })}</div><ha-icon icon=${this._historyOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></div>${this._renderHistory()}</section>
       </div>
-      <div class="settings"><div class="section-title"><ha-icon icon="mdi:tune-variant"></ha-icon>Zentrale Druckvorgaben</div><div class="settings-text">${this._settings.reverse_print ? "Rückwärtsdruck" : "Vorwärtsdruck"} · ${this._settings.copies ?? 1} Exemplar(e) · ${this._settings.feed_lines ?? 4} Vorschubzeilen · Schneiden ${this._settings.cut ? "ein" : "aus"}</div></div>
+      <div class="settings"><div class="section-title"><ha-icon icon="mdi:tune-variant"></ha-icon>${this._t("settings.title")}</div><div class="settings-text">${this._t(this._settings.reverse_print ? "settings.reverse" : "settings.forward")} · ${this._t("settings.copies", { count: this._settings.copies ?? 1 })} · ${this._t("settings.feed", { count: this._settings.feed_lines ?? 4 })} · ${this._t(this._settings.cut ? "settings.cut_on" : "settings.cut_off")}</div></div>
     </div></ha-card>`;
   }
 }
@@ -675,5 +708,6 @@ class ThermalPrinterNotesCard extends LitElement {
 if (!customElements.get("thermal-printer-notes-card")) customElements.define("thermal-printer-notes-card", ThermalPrinterNotesCard);
 window.customCards = window.customCards || [];
 if (!window.customCards.some((card) => card.type === "thermal-printer-notes-card")) {
-  window.customCards.push({ type: "thermal-printer-notes-card", name: "Thermal Printer Notes", description: "Private Markdown-Notizen mit EP-261C-Druckvorschau und Verlauf", preview: true });
+  const language = detectLanguage();
+  window.customCards.push({ type: "thermal-printer-notes-card", name: translate(language, "card.name"), description: translate(language, "card.description"), preview: true });
 }

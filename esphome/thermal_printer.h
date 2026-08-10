@@ -43,7 +43,7 @@ static constexpr size_t TP_TX_CHUNK = 16;  // 800 B/s at one chunk per 20 ms
 
 struct PrintOptions {
   uint8_t alignment{0};  // 0 left, 1 centered, 2 right
-  uint8_t size{0};       // 0 normal, 1 double width, 2 double size
+  uint8_t size{0};       // 0 normal, 1 double width, 2 double size, 3 small
   uint8_t feed_lines{4};
   // Firmware extension: ESC { is not documented in the EP-261C manual but is
   // confirmed to work on the tested SV2.00.02 firmware.
@@ -319,6 +319,27 @@ class ThermalPrinterComponent : public esphome::uart::UARTDevice {
     return 30;                 // 24-dot glyph plus 6-dot gap.
   }
 
+  static uint8_t option_font_(const PrintOptions &options) {
+    return options.size == 3 ? 1 : 0;
+  }
+
+  static uint8_t option_size_(const PrintOptions &options) {
+    return options.size == 3 ? 0 : std::min<uint8_t>(options.size, 2);
+  }
+
+  static size_t option_columns_(const PrintOptions &options) {
+    if (options.size == 3) return TP_SMALL_COLUMNS;
+    return options.size == 0 ? TP_COLUMNS : TP_COLUMNS / 2;
+  }
+
+  static void apply_option_style_(std::vector<uint8_t> &out,
+                                  const PrintOptions &options,
+                                  PrintStyle &style) {
+    set_font_(out, style, option_font_(options));
+    set_size_(out, style, option_size_(options));
+    set_line_spacing_(out, line_spacing_(style.size, style.font));
+  }
+
   static void set_upside_down_(std::vector<uint8_t> &out, bool enabled) {
     // Empirically supported by the installed printer firmware, but absent from
     // the official EP-261C command list. Only emit it for reverse printing.
@@ -592,11 +613,9 @@ class ThermalPrinterComponent : public esphome::uart::UARTDevice {
                            PrintStyle &style) {
     std::string qr;
     if (qr_payload_(raw_utf8, qr)) {
-      set_font_(out, style, 0);
-      set_size_(out, style, options.size);
+      apply_option_style_(out, options, style);
       set_bold_(out, style, false);
       set_underline_(out, style, false);
-      set_line_spacing_(out, line_spacing_(style.size, style.font));
       append_qr_(out, qr);
       set_alignment_(out, options.alignment);
       return;
@@ -604,7 +623,7 @@ class ThermalPrinterComponent : public esphome::uart::UARTDevice {
 
     const std::string line = utf8_to_windows_1252_(raw_utf8);
     if (line.find_first_not_of(" \t") == std::string::npos) {
-      set_line_spacing_(out, line_spacing_(options.size, 0));
+      apply_option_style_(out, options, style);
       out.push_back(TP_LF);
       return;
     }
@@ -647,10 +666,8 @@ class ThermalPrinterComponent : public esphome::uart::UARTDevice {
       out.push_back(TP_LF);
     } else {
       set_alignment_(out, options.alignment);
-      set_font_(out, style, 0);
-      set_size_(out, style, options.size);
-      set_line_spacing_(out, line_spacing_(style.size, style.font));
-      const size_t columns = options.size == 0 ? TP_COLUMNS : TP_COLUMNS / 2;
+      apply_option_style_(out, options, style);
+      const size_t columns = option_columns_(options);
       if (line.size() >= 5 && starts_with_(line, "- [") && line[4] == ']') {
         const bool checked = line[3] == 'x' || line[3] == 'X';
         append_wrapped_(out, std::string(checked ? "[x] " : "[ ] ") +
@@ -671,11 +688,9 @@ class ThermalPrinterComponent : public esphome::uart::UARTDevice {
     }
 
     set_alignment_(out, options.alignment);
-    set_font_(out, style, 0);
-    set_size_(out, style, options.size);
+    apply_option_style_(out, options, style);
     set_bold_(out, style, false);
     set_underline_(out, style, false);
-    set_line_spacing_(out, line_spacing_(style.size, style.font));
   }
 
   static std::vector<uint8_t> render_document_(const std::string &markdown,
@@ -689,8 +704,7 @@ class ThermalPrinterComponent : public esphome::uart::UARTDevice {
     PrintStyle style;
     if (options.reverse_print) set_upside_down_(out, true);
     set_alignment_(out, options.alignment);
-    set_size_(out, style, options.size);
-    set_line_spacing_(out, line_spacing_(style.size, style.font));
+    apply_option_style_(out, options, style);
     const std::vector<std::string> lines = split_lines_(markdown);
     if (options.reverse_print) {
       for (auto it = lines.rbegin(); it != lines.rend(); ++it)

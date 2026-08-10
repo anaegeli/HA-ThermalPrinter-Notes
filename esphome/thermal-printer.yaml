@@ -82,7 +82,8 @@ api:
             options.alignment = alignment == "center" ? 1 :
                                 (alignment == "right" ? 2 : 0);
             options.size = size == "double_width" ? 1 :
-                           (size == "double_size" ? 2 : 0);
+                           (size == "double_size" ? 2 :
+                           (size == "small" ? 3 : 0));
             const int32_t limited_feed = feed_lines < 0 ? 0 :
                                          (feed_lines > 20 ? 20 : feed_lines);
             options.feed_lines = static_cast<uint8_t>(limited_feed);

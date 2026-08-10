@@ -42,6 +42,14 @@ DOCUMENT_SCHEMA = {
 }
 
 
+class ApiError(RuntimeError):
+    """Carry a stable error code that the card can translate locally."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
 def _runtime(hass: HomeAssistant, msg: dict[str, Any]) -> dict[str, Any]:
     """Resolve the selected virtual printer device to its runtime."""
     root = hass.data.get(DOMAIN, {})
@@ -51,20 +59,20 @@ def _runtime(hass: HomeAssistant, msg: dict[str, Any]) -> dict[str, Any]:
         entry_id = root.get("devices", {}).get(device_id)
         runtime = entries.get(entry_id)
         if runtime is None:
-            raise RuntimeError("Der ausgewählte Drucker ist nicht verfügbar")
+            raise ApiError("printer_unavailable")
         return runtime
     if len(entries) == 1:
         return next(iter(entries.values()))
     if not entries:
-        raise RuntimeError("Thermal Printer Notes ist nicht konfiguriert")
-    raise RuntimeError("Bitte einen Drucker in der Kartenkonfiguration auswählen")
+        raise ApiError("not_configured")
+    raise ApiError("printer_required")
 
 
 def _user(connection: websocket_api.ActiveConnection) -> tuple[str, str]:
     """Get identity only from the authenticated Home Assistant connection."""
     user = connection.user
     if user is None:
-        raise RuntimeError("Angemeldeter Benutzer ist nicht verfügbar")
+        raise ApiError("user_unavailable")
     return user.id, user.name or "Home Assistant"
 
 
@@ -102,20 +110,13 @@ def _resolved_print_action(hass: HomeAssistant, entry: ConfigEntry) -> str:
                     action,
                 )
             return action
-    raise RuntimeError(
-        f"Druckaktion '{configured}' ist in Home Assistant nicht verfügbar. "
-        "Bitte den ESPHome-Drucker unter Geräte & Dienste konfigurieren."
-    )
+    raise ApiError("print_action_unavailable")
 
 
 def _public_print_error(err: Exception) -> str:
     """Return a useful bounded error for the authenticated card user."""
     detail = " ".join(str(err).split())[:400]
-    return (
-        f"Die Druckaktion ist fehlgeschlagen: {detail}"
-        if detail
-        else "Die Druckaktion ist ohne Fehlermeldung fehlgeschlagen"
-    )
+    return detail or "print_failed"
 
 
 def _adapt_service_data(
@@ -211,7 +212,14 @@ def _send_validation_error(
     connection: websocket_api.ActiveConnection, msg_id: int, err: Exception
 ) -> None:
     """Return a stable validation error without internal details."""
-    connection.send_error(msg_id, "invalid_document", str(err))
+    connection.send_error(msg_id, "invalid_document", "invalid_document")
+
+
+def _send_api_error(
+    connection: websocket_api.ActiveConnection, msg_id: int, err: ApiError
+) -> None:
+    """Return a machine-readable error for translation by the card."""
+    connection.send_error(msg_id, err.code, err.code)
 
 
 def _printer_payload(runtime: dict[str, Any]) -> dict[str, Any]:
@@ -255,8 +263,8 @@ async def websocket_get_state(
         entry: ConfigEntry = runtime["entry"]
         store: UserDataStore = runtime["store"]
         user_id, user_name = _user(connection)
-    except RuntimeError as err:
-        connection.send_error(msg["id"], "not_ready", str(err))
+    except ApiError as err:
+        _send_api_error(connection, msg["id"], err)
         return
     settings = entry_settings(entry)
     connection.send_result(
@@ -301,8 +309,8 @@ async def websocket_save_draft(
     except ValidationError as err:
         _send_validation_error(connection, msg["id"], err)
         return
-    except RuntimeError as err:
-        connection.send_error(msg["id"], "not_ready", str(err))
+    except ApiError as err:
+        _send_api_error(connection, msg["id"], err)
         return
     connection.send_result(msg["id"], {"draft": saved})
 
@@ -332,8 +340,8 @@ async def websocket_save_history(
     except ValidationError as err:
         _send_validation_error(connection, msg["id"], err)
         return
-    except RuntimeError as err:
-        connection.send_error(msg["id"], "not_ready", str(err))
+    except ApiError as err:
+        _send_api_error(connection, msg["id"], err)
         return
     connection.send_result(msg["id"], {"draft": saved, "history": history})
 
@@ -358,8 +366,8 @@ async def websocket_print(
     except ValidationError as err:
         _send_validation_error(connection, msg["id"], err)
         return
-    except RuntimeError as err:
-        connection.send_error(msg["id"], "not_ready", str(err))
+    except ApiError as err:
+        _send_api_error(connection, msg["id"], err)
         return
     except Exception as err:
         _LOGGER.exception("Thermal printer action failed")
@@ -389,14 +397,12 @@ async def websocket_history_get(
     try:
         store: UserDataStore = _runtime(hass, msg)["store"]
         user_id, _ = _user(connection)
-    except RuntimeError as err:
-        connection.send_error(msg["id"], "not_ready", str(err))
+    except ApiError as err:
+        _send_api_error(connection, msg["id"], err)
         return
     item = await store.async_get_history(user_id, msg["history_id"])
     if item is None:
-        connection.send_error(
-            msg["id"], "not_found", "Verlaufseintrag nicht gefunden"
-        )
+        connection.send_error(msg["id"], "not_found", "not_found")
         return
     connection.send_result(msg["id"], {"history": item})
 
@@ -418,13 +424,11 @@ async def websocket_history_delete(
     try:
         store: UserDataStore = _runtime(hass, msg)["store"]
         user_id, _ = _user(connection)
-    except RuntimeError as err:
-        connection.send_error(msg["id"], "not_ready", str(err))
+    except ApiError as err:
+        _send_api_error(connection, msg["id"], err)
         return
     if not await store.async_delete_history(user_id, msg["history_id"]):
-        connection.send_error(
-            msg["id"], "not_found", "Verlaufseintrag nicht gefunden"
-        )
+        connection.send_error(msg["id"], "not_found", "not_found")
         return
     connection.send_result(msg["id"], {"deleted": True})
 
@@ -442,8 +446,8 @@ async def websocket_history_clear(
     try:
         store: UserDataStore = _runtime(hass, msg)["store"]
         user_id, _ = _user(connection)
-    except RuntimeError as err:
-        connection.send_error(msg["id"], "not_ready", str(err))
+    except ApiError as err:
+        _send_api_error(connection, msg["id"], err)
         return
     await store.async_clear_history(user_id)
     connection.send_result(msg["id"], {"cleared": True})
@@ -469,15 +473,13 @@ async def websocket_history_print(
         user_id, user_name = _user(connection)
         previous = await store.async_get_history(user_id, msg["history_id"])
         if previous is None:
-            connection.send_error(
-                msg["id"], "not_found", "Verlaufseintrag nicht gefunden"
-            )
+            connection.send_error(msg["id"], "not_found", "not_found")
             return
         history = await _submit_print(
             hass, entry, store, user_id, user_name, validate_document(previous)
         )
-    except RuntimeError as err:
-        connection.send_error(msg["id"], "not_ready", str(err))
+    except ApiError as err:
+        _send_api_error(connection, msg["id"], err)
         return
     except Exception as err:
         _LOGGER.exception("Thermal printer history action failed")

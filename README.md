@@ -9,6 +9,8 @@ Eine HACS-Custom-Integration mit einer eigenen Lovelace-Karte für private Markd
 - **Speichern** legt eine Notiz ohne Druck im Verlauf ab; beim Drucken wird der Verlaufseintrag zuerst angelegt
 - Markdown-Werkzeugleiste für Überschriften, Fett, Unterstreichen, Listen, Checklisten, Links, Trennlinien und QR-Codes
 - EP-261C-Vorschau mit 384 Druckpunkten, 32 Zeichen in Font A, 42 Zeichen im kleinen Kopf sowie den Umbruch- und Zeilenabstandsregeln des Treibers
+- Vier globale Schriftgrössen: klein (Font B, 42 Zeichen), normal, doppelte Breite und doppelte Grösse
+- Deutsch/Englisch lokalisierte Dashboard-Karte mit zentral gepflegten Übersetzungstexten
 - Kartenlayout im Dashboard-Editor als 1, 2 oder 3 Spalten wählbar; auf schmalen Bildschirmen automatisch gestapelt
 - Ausrichtung und Schriftgrösse pro persönlichem Entwurf
 - Exemplare, Vorschub, Vorwärts-/Rückwärtsdruck und Schneiden zentral pro Drucker
@@ -113,7 +115,7 @@ reverse_print: false
 cut: true
 ```
 
-`alignment` kann `left`, `center` oder `right` sein. `size` kann `normal`, `double_width` oder `double_size` sein.
+`alignment` kann `left`, `center` oder `right` sein. `size` kann `small`, `normal`, `double_width` oder `double_size` sein. `small` verwendet den nativen EP-261C-Font B mit 9 × 17 Druckpunkten und 42 Zeichen pro Zeile.
 
 ## Lizenz und Danksagung
 
