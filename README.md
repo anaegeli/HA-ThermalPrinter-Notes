@@ -11,6 +11,7 @@ Eine HACS-Custom-Integration mit einer eigenen Lovelace-Karte für private Markd
 - EP-261C-Vorschau mit 384 Druckpunkten, 32 Zeichen in Font A, 42 Zeichen im kleinen Kopf sowie den Umbruch- und Zeilenabstandsregeln des Treibers
 - Drei globale Schriftgrössen: klein (Font B, 42 Zeichen), normal und doppelte Grösse
 - Doppelte Breite gezielt für markierte Wörter oder Zeilen mit `==breit==`; gemischter Umbruch nach echten Druckspalten
+- Zuverlässige Breitenwechsel innerhalb einer Zeile über den im EP-261C-Handbuch dokumentierten Grössenbefehl `GS !`
 - Deutsch/Englisch lokalisierte Dashboard-Karte mit zentral gepflegten Übersetzungstexten
 - Kartenlayout im Dashboard-Editor als 1, 2 oder 3 Spalten wählbar; auf schmalen Bildschirmen automatisch gestapelt
 - Ausrichtung und Schriftgrösse pro persönlichem Entwurf
