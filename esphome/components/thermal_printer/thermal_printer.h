@@ -1,6 +1,9 @@
 #pragma once
 
-#include "esphome.h"
+#include "esphome/components/uart/uart.h"
+#include "esphome/core/component.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/log.h"
 
 #include <algorithm>
 #include <cctype>
@@ -23,7 +26,7 @@
 // Incoming Home Assistant strings are UTF-8 and are converted to Windows-1252.
 // The EP-261C selftest confirms CP1252 Latin1 as its default code page.
 
-namespace thermal_printer {
+namespace esphome::thermal_printer {
 
 static constexpr uint8_t TP_ESC = 0x1B;
 static constexpr uint8_t TP_FS = 0x1C;
@@ -53,10 +56,23 @@ struct PrintOptions {
   std::string header_right;
 };
 
-class ThermalPrinterComponent : public esphome::uart::UARTDevice {
+class ThermalPrinterComponent : public Component, public uart::UARTDevice {
  public:
-  explicit ThermalPrinterComponent(esphome::uart::UARTComponent *parent)
-      : esphome::uart::UARTDevice(parent) {}
+  ThermalPrinterComponent() = default;
+
+  // Compatibility constructor for installations which still instantiate the
+  // driver from a YAML lambda instead of the external component schema.
+  explicit ThermalPrinterComponent(uart::UARTComponent *parent)
+      : uart::UARTDevice(parent) {}
+
+  void setup() override { begin(); }
+
+  float get_setup_priority() const override { return setup_priority::DATA; }
+
+  void dump_config() override {
+    ESP_LOGCONFIG("thermal_printer", "Cashino EP-261C Thermal Printer");
+    ESP_LOGCONFIG("thermal_printer", "  Driver version: 0.5.0");
+  }
 
   void begin() {
     initialized_ = true;
@@ -69,8 +85,9 @@ class ThermalPrinterComponent : public esphome::uart::UARTDevice {
     ESP_LOGI("thermal_printer", "EP-261C driver initialized");
   }
 
-  // Must be called about every 20 ms from an ESPHome interval.
-  void loop() {
+  // ESPHome calls this automatically; transmission is internally paced to
+  // one small chunk every 20 ms so API and Ethernet handling stay responsive.
+  void loop() override {
     if (!initialized_) return;
 
     receive_status_();
@@ -848,7 +865,7 @@ inline ThermalPrinterComponent *&driver_instance() {
   return instance;
 }
 
-}  // namespace thermal_printer
+}  // namespace esphome::thermal_printer
 
-using thermal_printer::PrintOptions;
-using thermal_printer::ThermalPrinterComponent;
+using esphome::thermal_printer::PrintOptions;
+using esphome::thermal_printer::ThermalPrinterComponent;

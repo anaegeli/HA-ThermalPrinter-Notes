@@ -1,180 +1,50 @@
 ################################################################################
-# ESPHome 2026.7.x - Olimex ESP32-POE-ISO + Cashino EP-261C (TTL UART)
+# ESPHome device template - Olimex ESP32-POE-ISO + Cashino EP-261C
 #
-# UART wiring:
-#   ESP32 GND   <-> EP-261C GND
-#   ESP32 GPIO4  -> EP-261C RX
-#   ESP32 GPIO5 <-  EP-261C TX
-#   EP-261C DTR is currently not connected (see UART note below).
-#
-# IMPORTANT BEFORE POWER-ON:
-# - This unit's selftest identifies it as the 12 V version. Do not use 5 V.
-#   Use a properly rated 12 V printer supply (check the label for current).
-# - Verify that the printer TX high level is at most 3.3 V before connecting it
-#   to GPIO5. Use a level shifter or divider if printer TX is 5 V.
-# - Never power the Olimex +5V pin externally while USB is connected.
+# This is the only file an end user needs in /config/esphome. The complete
+# board configuration, printer configuration and C++ driver are loaded from:
+# https://github.com/anaegeli/HA-ThermalPrinter-Notes
 ################################################################################
 
 substitutions:
-  name: thermal-printer
+  device_name: thermal-printer
   friendly_name: Thermal Printer
+  project_name: anaegeli.thermal-printer-notes
+  project_version: "0.5.0"
 
-esphome:
-  name: ${name}
-  friendly_name: ${friendly_name}
-  name_add_mac_suffix: false
-  includes:
-    - thermal_printer.h
-  on_boot:
-    priority: -100
-    then:
-      - lambda: |-
-          auto *driver = new ThermalPrinterComponent(id(printer_uart));
-          thermal_printer::driver_instance() = driver;
-          driver->begin();
-          id(printer_status).publish_state("Startet");
+  # Secrets stay local. The remote packages never read secrets directly.
+  api_encryption_key: !secret esphome_api_encryption_key
+  ota_password: !secret esphome_ota
 
-esp32:
-  board: esp32-poe-iso
-  variant: esp32
-  framework:
-    type: esp-idf
+  # Olimex ESP32-POE-ISO (WROOM) hardware defaults.
+  esp32_board: esp32-poe-iso
+  esp32_variant: esp32
+  esp32_framework: esp-idf
+  ethernet_type: LAN8720
+  ethernet_mdc_pin: GPIO23
+  ethernet_mdio_pin: GPIO18
+  ethernet_clock_pin: GPIO17
+  ethernet_clock_mode: CLK_OUT
+  ethernet_phy_address: "0"
+  ethernet_power_pin: GPIO12
+  logger_level: INFO
 
-# Olimex ESP32-POE-ISO (WROOM variant). Wi-Fi and Ethernet cannot be enabled
-# together in ESPHome. For a WROVER board the Ethernet clock pin differs.
-ethernet:
-  type: LAN8720
-  mdc_pin: GPIO23
-  mdio_pin: GPIO18
-  clk:
-    pin: GPIO17
-    mode: CLK_OUT
-  phy_addr: 0
-  power_pin: GPIO12
+  # Cashino EP-261C TTL UART defaults.
+  printer_tx_pin: GPIO4
+  printer_rx_pin: GPIO5
+  printer_baud_rate: "9600"
+  printer_rx_buffer_size: "256"
+  printer_feed_button_lines: "5"
 
-logger:
-  level: INFO
-  baud_rate: 0
+  # The external C++ component follows main and is refreshed once per hour.
+  thermal_printer_repository: https://github.com/anaegeli/HA-ThermalPrinter-Notes
+  thermal_printer_ref: main
+  thermal_printer_refresh: 1h
 
-api:
-  encryption:
-    key: !secret esphome_api_encryption_key
+packages:
+  olimex_esp32_poe_iso: github://anaegeli/HA-ThermalPrinter-Notes/esphome/packages/olimex-esp32-poe-iso.yaml@main
+  cashino_ep_261c: github://anaegeli/HA-ThermalPrinter-Notes/esphome/packages/cashino-ep-261c.yaml@main
 
-  # Home Assistant action:
-  #   esphome.thermal_printer_print_markdown
-  actions:
-    - action: print_markdown
-      variables:
-        markdown_content: string
-        print_user: string
-        print_timestamp: string
-        alignment: string
-        size: string
-        copies: int
-        feed_lines: int
-        reverse_print: bool
-        cut: bool
-      then:
-        - lambda: |-
-            PrintOptions options;
-            options.header_left = print_user.str();
-            options.header_right = print_timestamp.str();
-            options.alignment = alignment == "center" ? 1 :
-                                (alignment == "right" ? 2 : 0);
-            options.size = size == "double_width" ? 1 :
-                           (size == "double_size" ? 2 :
-                           (size == "small" ? 3 : 0));
-            const int32_t limited_feed = feed_lines < 0 ? 0 :
-                                         (feed_lines > 20 ? 20 : feed_lines);
-            options.feed_lines = static_cast<uint8_t>(limited_feed);
-            options.reverse_print = reverse_print;
-            options.cut = cut;
-            const int32_t limited_copies = copies < 1 ? 1 :
-                                           (copies > 5 ? 5 : copies);
-            const uint8_t safe_copies = static_cast<uint8_t>(limited_copies);
-
-            auto *driver = thermal_printer::driver_instance();
-            if (driver == nullptr) {
-              id(printer_status).publish_state("Fehler: Treiber nicht bereit");
-              return;
-            }
-            driver->enqueue_markdown(markdown_content, options, safe_copies);
-
-ota:
-  - platform: esphome
-    password: !secret esphome_ota
-
-uart:
-  id: printer_uart
-  tx_pin: GPIO4
-  rx_pin: GPIO5
-  baud_rate: 9600
-  data_bits: 8
-  parity: NONE
-  stop_bits: 1
-  rx_buffer_size: 256
-  # The manual identifies serial pin 1 as the printer's DTR flow-control output.
-  # ESPHome's UART flow_control_pin is for RS485 direction control, not TTL
-  # DTR/DSR, so it must not be set here. DTR polarity and voltage are not stated
-  # in the manual; output is deliberately paced until those values are verified.
-
-# The driver is deliberately serviced in small chunks. This prevents a long
-# 9600-baud print from blocking ESPHome's API/network loop.
-interval:
-  - interval: 20ms
-    then:
-      - lambda: |-
-          auto *driver = thermal_printer::driver_instance();
-          if (driver != nullptr) driver->loop();
-
-  - interval: 1s
-    then:
-      - lambda: |-
-          auto *driver = thermal_printer::driver_instance();
-          if (driver != nullptr)
-            id(printer_status).publish_state(driver->status_text());
-
-button:
-  - platform: template
-    name: Feed Paper
-    icon: mdi:arrow-down-circle-outline
-    on_press:
-      - lambda: |-
-          auto *driver = thermal_printer::driver_instance();
-          if (driver != nullptr) driver->enqueue_feed(5);
-
-  - platform: template
-    name: Test Page
-    icon: mdi:printer-check
-    on_press:
-      - lambda: |-
-          auto *driver = thermal_printer::driver_instance();
-          if (driver != nullptr) driver->enqueue_test_page();
-
-text_sensor:
-  - platform: template
-    id: printer_status
-    name: Status
-    icon: mdi:printer-check
-    update_interval: never
-
-binary_sensor:
-  - platform: template
-    name: Ready
-    icon: mdi:printer-check-outline
-    lambda: |-
-      auto *driver = thermal_printer::driver_instance();
-      return driver != nullptr && driver->ready();
-
-sensor:
-  - platform: template
-    name: Queue
-    icon: mdi:tray-full
-    accuracy_decimals: 0
-    unit_of_measurement: jobs
-    lambda: |-
-      auto *driver = thermal_printer::driver_instance();
-      if (driver == nullptr) return 0.0f;
-      return static_cast<float>(driver->queue_depth());
-    update_interval: 1s
-################################################################################
+dashboard_import:
+  package_import_url: github://anaegeli/HA-ThermalPrinter-Notes/esphome/thermal-printer.yaml@main
+  import_full_config: false
