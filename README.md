@@ -7,9 +7,10 @@ Eine HACS-Custom-Integration mit einer eigenen Lovelace-Karte für private Markd
 - Persönlicher Entwurf mit automatischem Speichern 500 ms nach der letzten Änderung
 - Persönlicher Verlauf pro Benutzer **und pro Drucker**; Standardlimit 20, zentral einstellbar von 1 bis 200
 - **Speichern** legt eine Notiz ohne Druck im Verlauf ab; beim Drucken wird der Verlaufseintrag zuerst angelegt
-- Markdown-Werkzeugleiste für Überschriften, Fett, Unterstreichen, Listen, Checklisten, Links, Trennlinien und QR-Codes
+- Markdown-Werkzeugleiste für Überschriften, Fett, Unterstreichen, Inline-Breite, Listen, Checklisten, Links, Trennlinien und QR-Codes
 - EP-261C-Vorschau mit 384 Druckpunkten, 32 Zeichen in Font A, 42 Zeichen im kleinen Kopf sowie den Umbruch- und Zeilenabstandsregeln des Treibers
-- Vier globale Schriftgrössen: klein (Font B, 42 Zeichen), normal, doppelte Breite und doppelte Grösse
+- Drei globale Schriftgrössen: klein (Font B, 42 Zeichen), normal und doppelte Grösse
+- Doppelte Breite gezielt für markierte Wörter oder Zeilen mit `==breit==`; gemischter Umbruch nach echten Druckspalten
 - Deutsch/Englisch lokalisierte Dashboard-Karte mit zentral gepflegten Übersetzungstexten
 - Kartenlayout im Dashboard-Editor als 1, 2 oder 3 Spalten wählbar; auf schmalen Bildschirmen automatisch gestapelt
 - Ausrichtung und Schriftgrösse pro persönlichem Entwurf
@@ -23,7 +24,7 @@ Eine HACS-Custom-Integration mit einer eigenen Lovelace-Karte für private Markd
 - Home Assistant 2026.7 oder neuer
 - HACS
 - Ein ESPHome-Gerät mit dem Dienst `*_print_markdown`, wie in `esphome/thermal-printer.yaml`
-- Für die erhöhte Textgrenze der aktualisierte Treiber `esphome/thermal_printer.h`
+- Für kleine Schrift, Inline-Breite und die erhöhte Textgrenze der aktualisierte Treiber `esphome/thermal_printer.h`
 
 ## Installation über HACS
 
@@ -71,7 +72,7 @@ Status/Bereit/Warteschlange stehen kompakt über dem Arbeitsbereich. Die zentral
 
 ## Druckvorschau
 
-Die Vorschau simuliert die vom mitgelieferten ESPHome-Treiber erzeugten Zeilen und nicht das HTML-Aussehen eines Browsers. Sie berücksichtigt den kleinen Benutzer-/Zeitkopf, die effektive Druckbreite von 384 Punkten, Font A/B, Überschriften, globale Schriftgrösse, Ausrichtung, Listen, Inline-Stile und Zeilenumbrüche.
+Die Vorschau simuliert die vom mitgelieferten ESPHome-Treiber erzeugten Zeilen und nicht das HTML-Aussehen eines Browsers. Sie berücksichtigt den kleinen Benutzer-/Zeitkopf, die effektive Druckbreite von 384 Punkten, Font A/B, Überschriften, globale Schriftgrösse, Ausrichtung, Listen, Inline-Stile sowie gemischte normale und doppelt breite Zeichen beim Zeilenumbruch.
 
 Die Form einzelner Buchstaben kann leicht vom Druck abweichen, da der EP-261C seine interne Bitmap-Schrift verwendet und der Browser eine Monospace-Schrift zeichnet. Zeilenlänge, Position und Grössenverhältnis sind jedoch am Druckerraster ausgerichtet. QR-Codes erscheinen als grössenrichtiger Platzhalter.
 
@@ -82,6 +83,7 @@ Text im Eingabefeld markieren und einen Knopf drücken. Die Karte setzt die zum 
 - `#`, `##`, `###` für Überschriften
 - `**fett**`
 - `*unterstrichen*` – der EP-261C-Treiber verwendet einen Stern als Unterstreichung, weil ESC/POS keine portable Kursivdarstellung bietet
+- `==breit==` für einzelne Wörter, Bereiche oder vollständig markierte Zeilen; mehrere markierte Zeilen werden einzeln formatiert
 - `- `, `1. ` und `- [ ] ` für Listen
 - `[Text](https://example.org)` für Links
 - `---` für eine Trennlinie
@@ -89,7 +91,7 @@ Text im Eingabefeld markieren und einen Knopf drücken. Die Karte setzt die zum 
 
 ## Textgrenze und ESPHome-Dateien
 
-Version 0.2.x erhöht die zulässige Quelle von 4.096 auf **16.384 UTF-8-Bytes**. Das ist eine bewusst konservative Obergrenze für den ESP32-POE-ISO ohne PSRAM. Der Treiber rendert einen Auftrag nur einmal; mehrere Exemplare teilen denselben Druckpuffer. Zusätzlich begrenzen ein 96-KiB-Limit für den gerenderten Auftrag und ein 128-KiB-Limit für die Warteschlange den Heap-Verbrauch.
+Seit Version 0.2.0 beträgt die zulässige Quelle **16.384 UTF-8-Bytes** statt 4.096. Das ist eine bewusst konservative Obergrenze für den ESP32-POE-ISO ohne PSRAM. Der Treiber rendert einen Auftrag nur einmal; mehrere Exemplare teilen denselben Druckpuffer. Zusätzlich begrenzen ein 96-KiB-Limit für den gerenderten Auftrag und ein 128-KiB-Limit für die Warteschlange den Heap-Verbrauch.
 
 Die Referenzdateien liegen unter `esphome/`. `thermal_printer.h` muss zur ESPHome-Konfiguration kopiert und die Firmware anschliessend vom Benutzer kompiliert/übertragen werden. Die HACS-Installation aktualisiert ESPHome-Dateien nicht automatisch.
 
@@ -115,7 +117,7 @@ reverse_print: false
 cut: true
 ```
 
-`alignment` kann `left`, `center` oder `right` sein. `size` kann `small`, `normal`, `double_width` oder `double_size` sein. `small` verwendet den nativen EP-261C-Font B mit 9 × 17 Druckpunkten und 42 Zeichen pro Zeile.
+`alignment` kann `left`, `center` oder `right` sein. Für neue Entwürfe kann `size` `small`, `normal` oder `double_size` sein. `small` verwendet den nativen EP-261C-Font B mit 9 × 17 Druckpunkten und 42 Zeichen pro Zeile. Der frühere Wert `double_width` bleibt ausschliesslich für bestehende Entwürfe und Verlaufseinträge kompatibel; neue Inhalte verwenden stattdessen `==breit==` gezielt im Markdown.
 
 ## Lizenz und Danksagung
 

@@ -204,6 +204,7 @@ class ThermalPrinterComponent : public esphome::uart::UARTDevice {
     uint8_t value;
     bool bold;
     bool underline;
+    bool wide;
   };
 
   struct PrintStyle {
@@ -513,15 +514,22 @@ class ThermalPrinterComponent : public esphome::uart::UARTDevice {
     std::vector<StyledChar> chars;
     bool bold = false;
     bool underline = false;
+    bool wide = false;
     for (size_t i = 0; i < text.size();) {
       if (i + 1 < text.size() && text[i] == '*' && text[i + 1] == '*') {
         bold = !bold;
+        i += 2;
+      } else if (i + 1 < text.size() && text[i] == '=' &&
+                 text[i + 1] == '=' &&
+                 (wide || text.find("==", i + 2) != std::string::npos)) {
+        wide = !wide;
         i += 2;
       } else if (text[i] == '*') {
         underline = !underline;  // ESC/POS has no portable italic command.
         i++;
       } else {
-        chars.push_back({static_cast<uint8_t>(text[i]), bold, underline});
+        chars.push_back(
+            {static_cast<uint8_t>(text[i]), bold, underline, wide});
         i++;
       }
     }
@@ -534,14 +542,23 @@ class ThermalPrinterComponent : public esphome::uart::UARTDevice {
                                  PrintStyle &style) {
     const bool base_bold = style.bold;
     const bool base_underline = style.underline;
+    const uint8_t base_size = style.size;
     for (size_t i = begin; i < end; i++) {
       set_bold_(out, style, base_bold || chars[i].bold);
       set_underline_(out, style, base_underline || chars[i].underline);
+      set_size_(out, style,
+                chars[i].wide && base_size == 0 ? 1 : base_size);
       out.push_back(chars[i].value);
     }
     set_bold_(out, style, base_bold);
     set_underline_(out, style, base_underline);
+    set_size_(out, style, base_size);
     out.push_back(TP_LF);
+  }
+
+  static size_t char_columns_(const StyledChar &character,
+                              uint8_t base_size) {
+    return character.wide && base_size == 0 ? 2 : 1;
   }
 
   static void append_wrapped_(std::vector<uint8_t> &out,
@@ -554,13 +571,22 @@ class ThermalPrinterComponent : public esphome::uart::UARTDevice {
     }
     std::vector<std::pair<size_t, size_t>> ranges;
     size_t begin = 0;
+    const uint8_t base_size = style.size;
     while (begin < chars.size()) {
-      size_t end = std::min(begin + columns, chars.size());
-      if (end < chars.size()) {
-        size_t break_at = end;
-        while (break_at > begin && chars[break_at].value != ' ') break_at--;
-        if (break_at > begin) end = break_at;
+      size_t end = begin;
+      size_t used_columns = 0;
+      size_t last_space = std::string::npos;
+      while (end < chars.size()) {
+        const size_t width = char_columns_(chars[end], base_size);
+        if (used_columns + width > columns) break;
+        used_columns += width;
+        if (chars[end].value == ' ') last_space = end;
+        end++;
       }
+      if (end < chars.size() && last_space != std::string::npos &&
+          last_space > begin)
+        end = last_space;
+      if (end == begin) end++;
       ranges.emplace_back(begin, end);
       begin = end;
       while (begin < chars.size() && chars[begin].value == ' ') begin++;

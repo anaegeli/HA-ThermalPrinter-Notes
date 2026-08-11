@@ -6,7 +6,7 @@ from typing import Final
 
 DOMAIN: Final = "thermal_printer_notes"
 NAME: Final = "Thermal Printer Notes"
-VERSION: Final = "0.3.0"
+VERSION: Final = "0.4.0"
 
 CONF_SOURCE_DEVICE_ID: Final = "source_device_id"
 CONF_PRINT_ACTION: Final = "print_action"
