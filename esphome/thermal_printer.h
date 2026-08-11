@@ -280,6 +280,20 @@ class ThermalPrinterComponent : public esphome::uart::UARTDevice {
     append_(out, {TP_ESC, '!', print_mode_(style)});
   }
 
+  static uint8_t character_size_(uint8_t size) {
+    if (size == 1) return 0x10;  // 2x width, normal height.
+    if (size == 2) return 0x11;  // 2x width and 2x height.
+    return 0x00;
+  }
+
+  static void emit_character_size_(std::vector<uint8_t> &out,
+                                   const PrintStyle &style) {
+    // The EP-261C documents GS ! as the dedicated character-size command.
+    // Emitting it together with ESC ! makes size changes within a buffered
+    // line reliable while ESC ! continues to carry font and text styles.
+    append_(out, {TP_GS, '!', character_size_(style.size)});
+  }
+
   static void set_bold_(std::vector<uint8_t> &out, PrintStyle &style,
                         bool enabled) {
     if (style.bold == enabled) return;
@@ -300,6 +314,7 @@ class ThermalPrinterComponent : public esphome::uart::UARTDevice {
     if (style.size == limited) return;
     style.size = limited;
     emit_print_mode_(out, style);
+    emit_character_size_(out, style);
   }
 
   static void set_font_(std::vector<uint8_t> &out, PrintStyle &style,

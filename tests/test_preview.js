@@ -155,6 +155,9 @@ assert.match(driverSource, /options\.size == 3 \? 1 : 0/, "driver mode 3 selects
 assert.match(driverSource, /options\.size == 3\) return TP_SMALL_COLUMNS/, "driver mode 3 wraps at 42 columns");
 assert.match(driverSource, /character\.wide && base_size == 0 \? 2 : 1/, "driver counts inline-wide characters as two columns");
 assert.match(driverSource, /chars\[i\]\.wide && base_size == 0 \? 1 : base_size/, "driver toggles ESC/POS double width per marked run");
+assert.match(driverSource, /if \(size == 1\) return 0x10/, "driver maps inline width to GS ! double-width");
+assert.match(driverSource, /if \(size == 2\) return 0x11/, "driver maps double size to GS ! width and height");
+assert.match(driverSource, /append_\(out, \{TP_GS, '!', character_size_\(style\.size\)\}\)/, "driver emits the EP-261C dedicated size command");
 assert.doesNotMatch(cardSource, /<option value="double_width">\$\{this\._t\("size\.double_width"\)\}/, "new drafts do not offer global double width");
 
 console.log("EP-261C preview model checks passed");
