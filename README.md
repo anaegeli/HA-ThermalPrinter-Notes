@@ -24,8 +24,8 @@ Eine HACS-Custom-Integration mit einer eigenen Lovelace-Karte für private Markd
 
 - Home Assistant 2026.7 oder neuer
 - HACS
-- Ein ESPHome-Gerät mit dem Dienst `*_print_markdown`, wie in `esphome/thermal-printer.yaml`
-- Für kleine Schrift, Inline-Breite und die erhöhte Textgrenze der aktualisierte Treiber `esphome/thermal_printer.h`
+- Ein ESPHome-Gerät mit der Remote-Konfiguration aus `esphome/thermal-printer.yaml`
+- Internetzugriff des ESPHome Device Builders beim Einlesen und Kompilieren, damit Packages und C++-Komponente aus GitHub geladen werden können
 
 ## Installation über HACS
 
@@ -90,11 +90,47 @@ Text im Eingabefeld markieren und einen Knopf drücken. Die Karte setzt die zum 
 - `---` für eine Trennlinie
 - `QR: https://example.org` für einen QR-Code
 
-## Textgrenze und ESPHome-Dateien
+## ESPHome-Installation
+
+Seit Version 0.5.0 besteht die ESPHome-Konfiguration aus einem kleinen Device-Template und zwei Remote-Packages:
+
+```text
+esphome/
+├── thermal-printer.yaml
+├── packages/
+│   ├── olimex-esp32-poe-iso.yaml
+│   └── cashino-ep-261c.yaml
+└── components/
+    └── thermal_printer/
+        ├── __init__.py
+        └── thermal_printer.h
+```
+
+Nur `esphome/thermal-printer.yaml` wird als lokale Gerätekonfiguration benötigt. Es lädt die beiden Packages über die ESPHome-Kurzform direkt aus `main`. Das Drucker-Package lädt wiederum den C++-Treiber als Git-basiertes `external_component`. Dadurch gehören YAML-Konfiguration und Treiber immer zum selben aktuellen Repository-Stand; das frühere manuelle Kopieren von `thermal_printer.h` entfällt.
+
+Das lokale Template enthält alle anlagenspezifischen Werte als Substitutionen: Gerätename, Projektangaben, API-/OTA-Secrets, ESP32-Board, Ethernet-Pins, UART-Pins, Baudrate, Puffergrösse sowie Repository-Ref und Aktualisierungsintervall. Die mitgelieferten Standardwerte entsprechen dem getesteten Olimex ESP32-POE-ISO WROOM und dem EP-261C an GPIO4/GPIO5 mit 9600 Baud.
+
+Minimaler Inhalt nach dem ESPHome-Dashboard-Import:
+
+```yaml
+substitutions:
+  device_name: thermal-printer
+  friendly_name: Thermal Printer
+  api_encryption_key: !secret esphome_api_encryption_key
+  ota_password: !secret esphome_ota
+
+packages:
+  olimex_esp32_poe_iso: github://anaegeli/HA-ThermalPrinter-Notes/esphome/packages/olimex-esp32-poe-iso.yaml@main
+  cashino_ep_261c: github://anaegeli/HA-ThermalPrinter-Notes/esphome/packages/cashino-ep-261c.yaml@main
+```
+
+`main` ist bewusst der Standardkanal. ESPHome aktualisiert die externe C++-Komponente gemäss `thermal_printer_refresh` standardmässig stündlich; Remote-Packages werden von ESPHome ebenfalls zwischengespeichert und regelmässig aktualisiert. Wer eine unveränderliche Installation benötigt, kann die beiden `@main`-Angaben und `thermal_printer_ref` auf denselben Release-Tag setzen.
+
+## Textgrenze
 
 Seit Version 0.2.0 beträgt die zulässige Quelle **16.384 UTF-8-Bytes** statt 4.096. Das ist eine bewusst konservative Obergrenze für den ESP32-POE-ISO ohne PSRAM. Der Treiber rendert einen Auftrag nur einmal; mehrere Exemplare teilen denselben Druckpuffer. Zusätzlich begrenzen ein 96-KiB-Limit für den gerenderten Auftrag und ein 128-KiB-Limit für die Warteschlange den Heap-Verbrauch.
 
-Die Referenzdateien liegen unter `esphome/`. `thermal_printer.h` muss zur ESPHome-Konfiguration kopiert und die Firmware anschliessend vom Benutzer kompiliert/übertragen werden. Die HACS-Installation aktualisiert ESPHome-Dateien nicht automatisch.
+Die HACS-Installation und das ESPHome-Package sind getrennte Aktualisierungswege. Nach einer C++-Änderung muss die ESP32-Firmware weiterhin neu kompiliert und übertragen werden; der passende Quellcode wird dabei jedoch automatisch aus GitHub geladen.
 
 ## Datenschutzmodell
 

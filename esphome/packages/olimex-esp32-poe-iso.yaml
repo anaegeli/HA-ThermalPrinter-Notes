@@ -1,0 +1,57 @@
+################################################################################
+# Remote package: Olimex ESP32-POE-ISO (WROOM) with Ethernet
+################################################################################
+
+substitutions:
+  device_name: thermal-printer
+  friendly_name: Thermal Printer
+  project_name: anaegeli.thermal-printer-notes
+  project_version: "0.5.0"
+  esp32_board: esp32-poe-iso
+  esp32_variant: esp32
+  esp32_framework: esp-idf
+  ethernet_type: LAN8720
+  ethernet_mdc_pin: GPIO23
+  ethernet_mdio_pin: GPIO18
+  ethernet_clock_pin: GPIO17
+  ethernet_clock_mode: CLK_OUT
+  ethernet_phy_address: "0"
+  ethernet_power_pin: GPIO12
+  logger_level: INFO
+
+esphome:
+  name: ${device_name}
+  friendly_name: ${friendly_name}
+  name_add_mac_suffix: false
+  project:
+    name: ${project_name}
+    version: ${project_version}
+
+esp32:
+  board: ${esp32_board}
+  variant: ${esp32_variant}
+  framework:
+    type: ${esp32_framework}
+
+# WROOM clock output. WROVER boards require a different Ethernet clock pin.
+ethernet:
+  type: ${ethernet_type}
+  mdc_pin: ${ethernet_mdc_pin}
+  mdio_pin: ${ethernet_mdio_pin}
+  clk:
+    pin: ${ethernet_clock_pin}
+    mode: ${ethernet_clock_mode}
+  phy_addr: ${ethernet_phy_address}
+  power_pin: ${ethernet_power_pin}
+
+logger:
+  level: ${logger_level}
+  baud_rate: 0
+
+api:
+  encryption:
+    key: ${api_encryption_key}
+
+ota:
+  - platform: esphome
+    password: ${ota_password}
