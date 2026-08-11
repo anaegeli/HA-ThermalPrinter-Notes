@@ -83,19 +83,47 @@ const styled = card._printerChars("**fett** und *unterstrichen*");
 assert.ok(styled.slice(0, 4).every((char) => char.bold));
 assert.ok(styled.slice(-13).every((char) => char.underline));
 assert.equal(card._printerChars("Emoji 😀").map((char) => char.value).join(""), "Emoji ?");
+const mixedWidth = card._printerChars("Normal ==BREIT== Ende");
+assert.equal(mixedWidth.map((char) => char.value).join(""), "Normal BREIT Ende");
+assert.ok(mixedWidth.slice(7, 12).every((char) => char.wide), "paired == markers enable inline double width");
+assert.ok(mixedWidth.slice(0, 7).every((char) => !char.wide), "normal text stays single width");
+assert.equal(card._printerChars("1 == 2").map((char) => char.value).join(""), "1 == 2", "unpaired equality signs stay printable");
+const combinedStyle = card._printerChars("**==BREIT==**");
+assert.ok(combinedStyle.every((char) => char.bold && char.wide), "wide text combines with bold");
+assert.equal(card._wideLine("Eine ganze Zeile"), "==Eine ganze Zeile==");
+assert.equal(card._wideLine("- Listentext"), "- ==Listentext==", "line formatting preserves Markdown list prefixes");
+assert.equal(card._wideLine("### Überschrift"), "### ==Überschrift==", "line formatting preserves heading prefixes");
+assert.equal(card._wideLine("QR: https://example.org"), "QR: https://example.org", "line formatting leaves QR directives intact");
+assert.equal(card._wideLine("==Bereits breit=="), "Bereits breit", "line formatting toggles an existing full-line marker");
+
+const mixedWrap = card._wrapChars(card._printerChars(`${"N".repeat(28)} ==AB==`), 32, true);
+assert.equal(mixedWrap.length, 2, "wide characters participate in line wrapping");
+for (const row of mixedWrap) {
+  const occupied = row.reduce((total, char) => total + card._charColumns(char, true), 0);
+  assert.ok(occupied <= 32, "mixed-width rows never exceed 32 printer columns");
+}
+assert.equal(card._wrapChars(card._printerChars(`==${"W".repeat(16)}==`), 32, true).length, 1, "16 wide Font A characters fit exactly");
+assert.equal(card._wrapChars(card._printerChars(`==${"W".repeat(17)}==`), 32, true).length, 2, "17 wide Font A characters wrap");
+assert.equal(card._wrapChars(card._printerChars(`==${"W".repeat(21)}==`), 42, true).length, 1, "21 wide Font B characters fit exactly");
+assert.equal(card._wrapChars(card._printerChars(`==${"W".repeat(22)}==`), 42, true).length, 2, "22 wide Font B characters wrap");
 
 card._draft = {
   title: "Hey DU!!!",
-  markdown: "Lorem Ipsum is simply dummy text of the printing and typesetting industry.",
+  markdown: "Normal ==BREIT== Ende",
   alignment: "left",
   size: "normal",
 };
 const drawnText = [];
+const canvasScales = [];
 const fakeContext = {
   clearRect: () => {},
   fillRect: () => {},
   strokeRect: () => {},
   fillText: (value) => { drawnText.push(value); },
+  save: () => {},
+  restore: () => {},
+  translate: () => {},
+  scale: (x, y) => { canvasScales.push([x, y]); },
 };
 const fakeCanvas = {
   width: 0,
@@ -108,6 +136,7 @@ assert.equal(fakeCanvas.width, 384, "canvas uses the 384-dot print width");
 assert.ok(fakeCanvas.height > 80, "canvas height follows the rendered receipt");
 assert.ok(drawnText.join("").includes("Adrian"), "canvas draws the print header");
 assert.ok(drawnText.join("").includes("HeyDU!!!"), "canvas draws the title");
+assert.ok(canvasScales.some(([x, y]) => x === 2 && y === 1), "preview stretches inline-wide glyphs horizontally");
 
 card._draft = {
   title: "",
@@ -124,5 +153,8 @@ const driverSource = fs.readFileSync("esphome/thermal_printer.h", "utf8");
 assert.match(yamlSource, /size == "small" \? 3/, "ESPHome maps small to driver mode 3");
 assert.match(driverSource, /options\.size == 3 \? 1 : 0/, "driver mode 3 selects Font B");
 assert.match(driverSource, /options\.size == 3\) return TP_SMALL_COLUMNS/, "driver mode 3 wraps at 42 columns");
+assert.match(driverSource, /character\.wide && base_size == 0 \? 2 : 1/, "driver counts inline-wide characters as two columns");
+assert.match(driverSource, /chars\[i\]\.wide && base_size == 0 \? 1 : base_size/, "driver toggles ESC/POS double width per marked run");
+assert.doesNotMatch(cardSource, /<option value="double_width">\$\{this\._t\("size\.double_width"\)\}/, "new drafts do not offer global double width");
 
 console.log("EP-261C preview model checks passed");

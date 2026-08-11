@@ -383,6 +383,41 @@ class ThermalPrinterNotesCard extends LitElement {
     });
   }
 
+  _widenSelection() {
+    const value = this._draft.markdown || "";
+    const textarea = this.renderRoot?.querySelector("#note-markdown");
+    const start = textarea?.selectionStart ?? this._selection.start ?? value.length;
+    const end = textarea?.selectionEnd ?? this._selection.end ?? start;
+    const selected = value.slice(start, end) || this._t("placeholder.text");
+    if (!selected.includes("\n")) {
+      this._insertAtSelection("==", "==", selected);
+      return;
+    }
+    const replacement = selected
+      .split("\n")
+      .map((line) => this._wideLine(line))
+      .join("\n");
+    this._updateDraft("markdown", `${value.slice(0, start)}${replacement}${value.slice(end)}`);
+    this.updateComplete.then(() => {
+      const target = this.renderRoot?.querySelector("#note-markdown");
+      target?.focus();
+      target?.setSelectionRange(start, start + replacement.length);
+      this._selection = { start, end: start + replacement.length };
+    });
+  }
+
+  _wideLine(line) {
+    if (!line || ["---", "___", "***"].includes(line.trim()) || /^(?:QR: |\[QR]\()/.test(line.trim())) return line;
+    const parts = line.match(/^(\s*(?:#{1,3} |- \[[ xX]] |[-*] |\d+\. ))?(.*)$/);
+    const prefix = parts?.[1] || "";
+    const content = parts?.[2] || "";
+    if (!content) return line;
+    if (content.startsWith("==") && content.endsWith("==") && content.length >= 4) {
+      return `${prefix}${content.slice(2, -2)}`;
+    }
+    return `${prefix}==${content}==`;
+  }
+
   _prefixLines(prefix, placeholder = undefined) {
     const value = this._draft.markdown || "";
     const textarea = this.renderRoot?.querySelector("#note-markdown");
@@ -487,31 +522,38 @@ class ThermalPrinterNotesCard extends LitElement {
 
   _printerChars(source, baseBold = false, baseUnderline = false) {
     const linked = String(source).replace(/\[([^\]]+)]\(([^)]+)\)/g, "$1 ($2)");
-    const chars = []; let bold = false; let underline = false;
+    const chars = []; let bold = false; let underline = false; let wide = false;
     const input = Array.from(linked);
     const extra = "€‚ƒ„…†‡‰Š‹ŒŽ‘’“”•–—™š›œžŸ";
     for (let index = 0; index < input.length;) {
       if (input[index] === "*" && input[index + 1] === "*") { bold = !bold; index += 2; continue; }
+      if (input[index] === "=" && input[index + 1] === "=" && (wide || input.slice(index + 2).join("").includes("=="))) { wide = !wide; index += 2; continue; }
       if (input[index] === "*") { underline = !underline; index += 1; continue; }
       const point = input[index].codePointAt(0);
       const supported = (point >= 0x20 && point <= 0x7e) || (point >= 0xa0 && point <= 0xff) || extra.includes(input[index]);
       const value = input[index] === "\t" ? " " : supported ? input[index] : "?";
-      chars.push({ value, bold: baseBold || bold, underline: baseUnderline || underline });
+      chars.push({ value, bold: baseBold || bold, underline: baseUnderline || underline, wide });
       index += 1;
     }
     return chars;
   }
 
-  _wrapChars(chars, columns) {
+  _charColumns(char, allowInlineWide) { return allowInlineWide && char.wide ? 2 : 1; }
+
+  _wrapChars(chars, columns, allowInlineWide = true) {
     if (!chars.length) return [[]];
     const ranges = []; let begin = 0;
     while (begin < chars.length) {
-      let end = Math.min(begin + columns, chars.length);
-      if (end < chars.length) {
-        let breakAt = end;
-        while (breakAt > begin && chars[breakAt]?.value !== " ") breakAt -= 1;
-        if (breakAt > begin) end = breakAt;
+      let end = begin; let usedColumns = 0; let lastSpace = -1;
+      while (end < chars.length) {
+        const width = this._charColumns(chars[end], allowInlineWide);
+        if (usedColumns + width > columns) break;
+        usedColumns += width;
+        if (chars[end].value === " ") lastSpace = end;
+        end += 1;
       }
+      if (end < chars.length && lastSpace > begin) end = lastSpace;
+      if (end === begin) end += 1;
       ranges.push(chars.slice(begin, end)); begin = end;
       while (begin < chars.length && chars[begin].value === " ") begin += 1;
     }
@@ -548,14 +590,15 @@ class ThermalPrinterNotesCard extends LitElement {
       let cell = small ? 9 : columns === 32 ? 12 : 24;
       let glyph = small ? 17 : this._draft.size === "double_size" ? 48 : 24;
       let line = small ? 23 : this._draft.size === "double_size" ? 54 : 30;
+      let allowInlineWide = small || this._draft.size === "normal";
       let align = this._draft.alignment; let bold = false; let underline = false;
-      if (raw.startsWith("### ")) { text = raw.slice(4); columns = 32; cell = 12; glyph = 24; line = 30; align = "left"; bold = true; underline = true; }
-      else if (raw.startsWith("## ")) { text = raw.slice(3); columns = 16; cell = 24; glyph = 24; line = 30; align = "center"; bold = true; }
-      else if (raw.startsWith("# ")) { text = raw.slice(2); columns = 16; cell = 24; glyph = 48; line = 54; align = "center"; bold = true; }
-      else if (["---", "___", "***"].includes(raw)) { text = "-".repeat(32); columns = 32; cell = 12; glyph = 24; line = 30; align = "left"; }
+      if (raw.startsWith("### ")) { text = raw.slice(4); columns = 32; cell = 12; glyph = 24; line = 30; align = "left"; bold = true; underline = true; allowInlineWide = true; }
+      else if (raw.startsWith("## ")) { text = raw.slice(3); columns = 16; cell = 24; glyph = 24; line = 30; align = "center"; bold = true; allowInlineWide = false; }
+      else if (raw.startsWith("# ")) { text = raw.slice(2); columns = 16; cell = 24; glyph = 48; line = 54; align = "center"; bold = true; allowInlineWide = false; }
+      else if (["---", "___", "***"].includes(raw)) { text = "-".repeat(32); columns = 32; cell = 12; glyph = 24; line = 30; align = "left"; allowInlineWide = false; }
       else if (/^- \[[ xX]]/.test(raw)) { text = `${/[xX]/.test(raw[3]) ? "[x]" : "[ ]"} ${raw.slice(6)}`; }
       else if (/^[-*] /.test(raw)) { text = `• ${raw.slice(2)}`; }
-      for (const chars of this._wrapChars(this._printerChars(text, bold, underline), columns)) rows.push({ chars, columns, cell, glyph, line, align, font: small ? "small" : "normal" });
+      for (const chars of this._wrapChars(this._printerChars(text, bold, underline), columns, allowInlineWide)) rows.push({ chars, columns, cell, glyph, line, align, font: small ? "small" : "normal", allowInlineWide });
     }
     return rows;
   }
@@ -604,16 +647,27 @@ class ThermalPrinterNotesCard extends LitElement {
           context.textAlign = "left";
           continue;
         }
-        const width = row.chars.length * row.cell;
+        const width = row.chars.reduce((total, char) => total + row.cell * this._charColumns(char, row.allowInlineWide), 0);
         const startX = row.align === "center"
           ? (384 - width) / 2
           : row.align === "right" ? 384 - width : 0;
         const baseline = row.top + row.glyph * 0.88;
-        row.chars.forEach((char, charIndex) => {
-          const x = startX + charIndex * row.cell;
+        let x = startX;
+        row.chars.forEach((char) => {
+          const columns = this._charColumns(char, row.allowInlineWide);
+          const charWidth = row.cell * columns;
           context.font = `${char.bold ? "700" : "400"} ${row.glyph}px 'Courier New', 'Liberation Mono', monospace`;
-          if (char.value !== " ") context.fillText(char.value, x, baseline, row.cell);
-          if (char.underline) context.fillRect(x, baseline + 1, row.cell, Math.max(1, row.glyph / 18));
+          if (char.value !== " " && columns === 2) {
+            context.save();
+            context.translate(x, 0);
+            context.scale(2, 1);
+            context.fillText(char.value, 0, baseline, row.cell);
+            context.restore();
+          } else if (char.value !== " ") {
+            context.fillText(char.value, x, baseline, row.cell);
+          }
+          if (char.underline) context.fillRect(x, baseline + 1, charWidth, Math.max(1, row.glyph / 18));
+          x += charWidth;
         });
       }
     });
@@ -638,7 +692,7 @@ class ThermalPrinterNotesCard extends LitElement {
 
   _statusLabel(status) { return this._t(`history.status_${["saved", "submitted", "failed"].includes(status) ? status : "pending"}`); }
   _alignmentLabel(value) { return this._t(`alignment.${value}`); }
-  _sizeLabel(value) { return this._t(`size.${value}`); }
+  _sizeLabel(value) { return this._t(value === "double_width" ? "size.double_width_legacy" : `size.${value}`); }
 
   _renderHistory() {
     if (!this._historyOpen) return "";
@@ -666,6 +720,7 @@ class ThermalPrinterNotesCard extends LitElement {
       <span class="divider"></span>
       ${this._toolButton("mdi:format-bold", this._t("tools.bold"), () => this._insertAtSelection("**", "**"))}
       ${this._toolButton("mdi:format-underline", this._t("tools.underline"), () => this._insertAtSelection("*", "*"))}
+      ${this._toolButton("mdi:arrow-expand-horizontal", this._t("tools.wide"), () => this._widenSelection())}
       <span class="divider"></span>
       ${this._toolButton("mdi:format-list-bulleted", this._t("tools.bulleted_list"), () => this._prefixLines("- "))}
       ${this._toolButton("mdi:format-list-numbered", this._t("tools.numbered_list"), () => this._prefixLines("1. "))}
@@ -693,7 +748,7 @@ class ThermalPrinterNotesCard extends LitElement {
             <button @click=${this._saveToHistory} ?disabled=${this._saving || this._busy || bytes > this._maxBytes}><ha-icon icon="mdi:content-save-outline"></ha-icon>${this._t("action.save")}</button>
             <button class="danger" @click=${this._clearEditor}><ha-icon icon="mdi:eraser"></ha-icon>${this._t("action.clear")}</button>
             <div class="compact-field"><label for="note-alignment">${this._t("field.alignment")}</label><select id="note-alignment" .value=${this._draft.alignment} @change=${(event) => this._updateDraft("alignment", event.target.value)}><option value="left">${this._t("alignment.left")}</option><option value="center">${this._t("alignment.center")}</option><option value="right">${this._t("alignment.right")}</option></select></div>
-            <div class="compact-field"><label for="note-size">${this._t("field.size")}</label><select id="note-size" .value=${this._draft.size} @change=${(event) => this._updateDraft("size", event.target.value)}><option value="small">${this._t("size.small")}</option><option value="normal">${this._t("size.normal")}</option><option value="double_width">${this._t("size.double_width")}</option><option value="double_size">${this._t("size.double_size")}</option></select></div>
+            <div class="compact-field"><label for="note-size">${this._t("field.size")}</label><select id="note-size" .value=${this._draft.size} @change=${(event) => this._updateDraft("size", event.target.value)}>${this._draft.size === "double_width" ? html`<option value="double_width">${this._t("size.double_width_legacy")}</option>` : ""}<option value="small">${this._t("size.small")}</option><option value="normal">${this._t("size.normal")}</option><option value="double_size">${this._t("size.double_size")}</option></select></div>
           </div>
           <div class="print-row"><span class="save-state">${this._saving ? this._t("autosave.saving") : this._t("autosave.idle")}</span><button class="primary" @click=${this._print} ?disabled=${this._busy || bytes > this._maxBytes}><ha-icon icon="mdi:printer"></ha-icon>${this._busy ? this._t("action.printing") : this._t("action.print")}</button></div>
         </section>
