@@ -43,6 +43,10 @@ ethernet:
     mode: ${ethernet_clock_mode}
   phy_addr: ${ethernet_phy_address}
   power_pin: ${ethernet_power_pin}
+  manual_ip:
+    static_ip: ${ethernet_ip}
+    gateway: ${ethernet_gw}
+    subnet: ${ethernet_mask}
 
 logger:
   level: ${logger_level}
