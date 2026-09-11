@@ -157,6 +157,7 @@ class ThermalPrinterNotesCard extends LitElement {
     this._messageType = "success";
     this._userName = "";
     this._printer = {};
+    this._previewProfile = null;
     this._draft = this._emptyDraft();
     this._history = [];
     this._settings = {};
@@ -247,6 +248,7 @@ class ThermalPrinterNotesCard extends LitElement {
     this._history = [];
     this._settings = {};
     this._printer = {};
+    this._previewProfile = null;
     this._userName = "";
   }
 
@@ -323,6 +325,7 @@ class ThermalPrinterNotesCard extends LitElement {
     this._history = state.history || [];
     this._settings = state.settings || {};
     this._maxBytes = Number(state.max_markdown_bytes || 16384);
+    this._previewProfile = state.preview_profile || null;
   }
 
   _updateDraft(field, value) {
@@ -627,21 +630,28 @@ class ThermalPrinterNotesCard extends LitElement {
     return ranges;
   }
 
+  _profile() {
+    const wide = this._previewProfile?.model === "EP-382C";
+    return { model: wide ? "EP-382C" : "EP-261C", dots: wide ? 576 : 384,
+      normal: wide ? 48 : 32, small: wide ? 64 : 42 };
+  }
+
   _previewRows() {
+    const { normal, small: smallColumns } = this._profile();
     const rows = [];
-    const headerRight = this._printTime().slice(0, 42);
-    const rightStart = 42 - headerRight.length;
-    const leftLimit = headerRight ? Math.max(0, rightStart - 1) : 42;
+    const headerRight = this._printTime().slice(0, smallColumns);
+    const rightStart = smallColumns - headerRight.length;
+    const leftLimit = headerRight ? Math.max(0, rightStart - 1) : smallColumns;
     let headerLeft = (this._userName || "Home Assistant").slice(0, leftLimit);
     if (headerLeft.length < rightStart) headerLeft += " ".repeat(rightStart - headerLeft.length);
-    rows.push({ chars: this._printerChars(headerLeft + headerRight), columns: 42, cell: 9, glyph: 17, line: 23, align: "left", font: "small" });
+    rows.push({ chars: this._printerChars(headerLeft + headerRight), columns: smallColumns, cell: 9, glyph: 17, line: 23, align: "left", font: "small" });
 
     for (const raw of this._printableSource().split("\n")) {
       const small = this._draft.size === "small";
       if (/^[ \t]*$/.test(raw)) {
         rows.push({
           chars: [],
-          columns: small ? 42 : 32,
+          columns: small ? smallColumns : normal,
           cell: small ? 9 : 12,
           glyph: small ? 17 : 24,
           line: this._draft.size === "double_size" ? 54 : small ? 23 : 30,
@@ -653,16 +663,16 @@ class ThermalPrinterNotesCard extends LitElement {
       const qr = raw.match(/^(?:QR: |\[QR]\()(.+?)(?:\))?$/);
       if (qr) { rows.push({ qr: qr[1], line: 178 }); continue; }
       let text = raw;
-      let columns = small ? 42 : this._draft.size === "normal" ? 32 : 16;
-      let cell = small ? 9 : columns === 32 ? 12 : 24;
+      let columns = small ? smallColumns : this._draft.size === "normal" ? normal : (normal / 2);
+      let cell = small ? 9 : columns === normal ? 12 : 24;
       let glyph = small ? 17 : this._draft.size === "double_size" ? 48 : 24;
       let line = small ? 23 : this._draft.size === "double_size" ? 54 : 30;
       let allowInlineWide = small || this._draft.size === "normal";
       let align = this._draft.alignment; let bold = false; let underline = false;
-      if (raw.startsWith("### ")) { text = raw.slice(4); columns = 32; cell = 12; glyph = 24; line = 30; align = "left"; bold = true; underline = true; allowInlineWide = true; }
-      else if (raw.startsWith("## ")) { text = raw.slice(3); columns = 16; cell = 24; glyph = 24; line = 30; align = "center"; bold = true; allowInlineWide = false; }
-      else if (raw.startsWith("# ")) { text = raw.slice(2); columns = 16; cell = 24; glyph = 48; line = 54; align = "center"; bold = true; allowInlineWide = false; }
-      else if (["---", "___", "***"].includes(raw)) { text = "-".repeat(32); columns = 32; cell = 12; glyph = 24; line = 30; align = "left"; allowInlineWide = false; }
+      if (raw.startsWith("### ")) { text = raw.slice(4); columns = normal; cell = 12; glyph = 24; line = 30; align = "left"; bold = true; underline = true; allowInlineWide = true; }
+      else if (raw.startsWith("## ")) { text = raw.slice(3); columns = (normal / 2); cell = 24; glyph = 24; line = 30; align = "center"; bold = true; allowInlineWide = false; }
+      else if (raw.startsWith("# ")) { text = raw.slice(2); columns = (normal / 2); cell = 24; glyph = 48; line = 54; align = "center"; bold = true; allowInlineWide = false; }
+      else if (["---", "___", "***"].includes(raw)) { text = "-".repeat(normal); columns = normal; cell = 12; glyph = 24; line = 30; align = "left"; allowInlineWide = false; }
       else if (/^- \[[ xX]]/.test(raw)) { text = `${/[xX]/.test(raw[3]) ? "[x]" : "[ ]"} ${raw.slice(6)}`; }
       else if (/^[-*] /.test(raw)) { text = `• ${raw.slice(2)}`; }
       for (const chars of this._wrapChars(this._printerChars(text, bold, underline), columns, allowInlineWide)) rows.push({ chars, columns, cell, glyph, line, align, font: small ? "small" : "normal", allowInlineWide });
@@ -691,10 +701,11 @@ class ThermalPrinterNotesCard extends LitElement {
     const canvases = this.renderRoot?.querySelectorAll("canvas[data-preview-chunk]");
     if (!canvases?.length) return;
     const chunks = this._previewChunks();
+    const profile = this._profile();
     canvases.forEach((canvas, index) => {
       const chunk = chunks[index];
       if (!chunk) return;
-      if (canvas.width !== 384) canvas.width = 384;
+      if (canvas.width !== profile.dots) canvas.width = profile.dots;
       if (canvas.height !== chunk.height) canvas.height = chunk.height;
       const context = canvas.getContext("2d");
       if (!context) return;
@@ -705,19 +716,19 @@ class ThermalPrinterNotesCard extends LitElement {
         if (row.qr) {
           context.lineWidth = 4;
           context.strokeStyle = "#000";
-          context.strokeRect(112, row.top + 5, 160, 160);
+          context.strokeRect((profile.dots - 160) / 2, row.top + 5, 160, 160);
           context.textAlign = "center";
           context.font = "700 18px monospace";
-          context.fillText("QR", 192, row.top + 81);
+          context.fillText("QR", profile.dots / 2, row.top + 81);
           context.font = "400 11px monospace";
-          context.fillText(row.qr.slice(0, 18), 192, row.top + 107, 145);
+          context.fillText(row.qr.slice(0, 18), profile.dots / 2, row.top + 107, 145);
           context.textAlign = "left";
           continue;
         }
         const width = row.chars.reduce((total, char) => total + row.cell * this._charColumns(char, row.allowInlineWide), 0);
         const startX = row.align === "center"
-          ? (384 - width) / 2
-          : row.align === "right" ? 384 - width : 0;
+          ? (profile.dots - width) / 2
+          : row.align === "right" ? profile.dots - width : 0;
         const baseline = row.top + row.glyph * 0.88;
         let x = startX;
         row.chars.forEach((char) => {
@@ -742,18 +753,19 @@ class ThermalPrinterNotesCard extends LitElement {
 
   _renderPreview() {
     const chunks = this._previewChunks();
+    const profile = this._profile();
     return html`
       <div class="paper-shell"><div class="paper">
         ${chunks.map((chunk, index) => html`
           <canvas
             data-preview-chunk=${String(index)}
-            width="384"
+            width=${String(profile.dots)}
             height=${String(chunk.height)}
             role="img"
             aria-label=${this._t("preview.section", { number: index + 1 })}
           ></canvas>
         `)}
-        <div class="paper-note">${this._t("preview.profile")}</div>
+        <div class="paper-note">${this._t("preview.profile", profile)}</div>
       </div></div>`;
   }
 

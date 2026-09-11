@@ -58,6 +58,7 @@ module(f"{domain}.frontend", async_register_frontend=None)
 module(f"{domain}.websocket", async_register_websocket_commands=None)
 integration = importlib.import_module(domain)
 UserDataStore = importlib.import_module(f"{domain}.storage").UserDataStore
+const = importlib.import_module(f"{domain}.const")
 
 
 async def run():
@@ -79,6 +80,8 @@ async def run():
     assert entry.version == 2 and entry.data["legacy_storage"]
     assert entry.unique_id == "esp-A"
     await integration.async_setup_entry(hass, entry)
+    assert const.printer_model(entry) == "EP-261C"
+    assert const.preview_profile(entry)["dots"] == 384
     runtime = hass.data["thermal_printer_notes"]["entries"][entry.entry_id]
     assert (await runtime["store"].async_get_draft("alice"))["size"] == "double_width"
     assert (await runtime["store"].async_get_history("alice", "old-id"))["markdown"] == "Old receipt"
@@ -95,6 +98,17 @@ async def run():
     assert await integration.async_migrate_entry(hass, modern)
     await integration.async_setup_entry(hass, modern)
     modern_store = hass.data["thermal_printer_notes"]["entries"][modern.entry_id]["store"]
+    modern.options["printer_model"] = "EP-382C"
+    assert const.entry_settings(modern)["printer_model"] == "EP-382C"
+    assert const.preview_profile(modern)["dots"] == 576
+    assert const.preview_profile(modern)["normal_columns"] == 48
+    assert const.preview_profile(modern)["small_columns"] == 64
+    assert const.preview_profile(entry)["dots"] == 384
+    modern.options.clear()
+    modern.data["printer_model"] = "EP-382C"
+    assert const.printer_model(modern) == "EP-382C", "model falls back to entry data"
+    modern.options["printer_model"] = "EP-261C"
+    assert const.printer_model(modern) == "EP-261C", "options override original setup"
     await modern_store.async_save_draft("alice", {"markdown": "Updated B"})
     assert (await store.async_get_draft("alice"))["markdown"] == "Private A"
     assert (await modern_store.async_get_draft("bob"))["markdown"] == "Private B"

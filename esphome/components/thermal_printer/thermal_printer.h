@@ -17,7 +17,7 @@
 #include <utility>
 #include <vector>
 
-// Header-only ESC/POS driver for the Cashino EP-261C.
+// Header-only ESC/POS driver for the Cashino EP-261C and EP-382C.
 // UART: ESP32 GPIO4 (TX) -> printer RX, GPIO5 (RX) <- printer TX, 9600 8N1.
 //
 // Character configuration used here:
@@ -36,8 +36,6 @@ static constexpr uint8_t TP_EOT = 0x04;
 static constexpr uint8_t TP_LF = 0x0A;
 static constexpr uint8_t TP_CODE_PAGE = 16;          // Windows-1252 / Latin I
 static constexpr uint8_t TP_INTERNATIONAL_SET = 0;  // Preserve standard ASCII
-static constexpr size_t TP_COLUMNS = 32;             // 58 mm, font A
-static constexpr size_t TP_SMALL_COLUMNS = 42;       // 58 mm, font B (9x17)
 static constexpr size_t TP_MAX_SOURCE_BYTES = 16384;
 static constexpr size_t TP_MAX_RENDERED_BYTES = 98304;
 static constexpr size_t TP_MAX_QUEUED_BYTES = 131072;
@@ -49,7 +47,7 @@ struct PrintOptions {
   uint8_t size{0};       // 0 normal, 1 double width, 2 double size, 3 small
   uint8_t feed_lines{4};
   // Firmware extension: ESC { is not documented in the EP-261C manual but is
-  // confirmed to work on the tested SV2.00.02 firmware.
+  // confirmed on SV2.00.02; it is documented in the EP-382C manual (p. 23).
   bool reverse_print{false};
   bool cut{true};
   std::string header_left;
@@ -65,13 +63,20 @@ class ThermalPrinterComponent : public Component, public uart::UARTDevice {
   explicit ThermalPrinterComponent(uart::UARTComponent *parent)
       : uart::UARTDevice(parent) {}
 
+  void set_ep_382c(bool enabled) { ep_382c_ = enabled; }
+  const char *model() const { return ep_382c_ ? "EP-382C" : "EP-261C"; }
+  size_t columns() const { return ep_382c_ ? 48 : 32; }
+  size_t small_columns() const { return ep_382c_ ? 64 : 42; }
+
   void setup() override { begin(); }
 
   float get_setup_priority() const override { return setup_priority::DATA; }
 
   void dump_config() override {
-    ESP_LOGCONFIG("thermal_printer", "Cashino EP-261C Thermal Printer");
-    ESP_LOGCONFIG("thermal_printer", "  Driver version: 0.6.0");
+    ESP_LOGCONFIG("thermal_printer", "Cashino %s Thermal Printer (%u/%u columns)",
+                  model(), static_cast<unsigned>(columns()),
+                  static_cast<unsigned>(small_columns()));
+    ESP_LOGCONFIG("thermal_printer", "  Driver version: 0.7.0");
   }
 
   void begin() {
@@ -82,7 +87,7 @@ class ThermalPrinterComponent : public Component, public uart::UARTDevice {
     const std::vector<uint8_t> init = build_init_only_();
     write_array(init.data(), init.size());
     last_tx_ms_ = millis();
-    ESP_LOGI("thermal_printer", "EP-261C driver initialized");
+    ESP_LOGI("thermal_printer", "%s driver initialized", model());
   }
 
   // ESPHome calls this automatically; transmission is internally paced to
@@ -238,6 +243,7 @@ class ThermalPrinterComponent : public Component, public uart::UARTDevice {
 
   std::deque<Job> jobs_;
   size_t queued_rendered_bytes_{0};
+  bool ep_382c_{false};
   bool initialized_{false};
   uint32_t last_tx_ms_{0};
   uint32_t last_print_finished_ms_{0};
@@ -360,9 +366,9 @@ class ThermalPrinterComponent : public Component, public uart::UARTDevice {
     return options.size == 3 ? 0 : std::min<uint8_t>(options.size, 2);
   }
 
-  static size_t option_columns_(const PrintOptions &options) {
-    if (options.size == 3) return TP_SMALL_COLUMNS;
-    return options.size == 0 ? TP_COLUMNS : TP_COLUMNS / 2;
+  size_t option_columns_(const PrintOptions &options) const {
+    if (options.size == 3) return small_columns();
+    return options.size == 0 ? columns() : columns() / 2;
   }
 
   static void apply_option_style_(std::vector<uint8_t> &out,
@@ -466,17 +472,16 @@ class ThermalPrinterComponent : public Component, public uart::UARTDevice {
     return text.substr(0, max_length - 3) + "...";
   }
 
-  static void render_header_(std::vector<uint8_t> &out,
-                             const PrintOptions &options,
-                             PrintStyle &style) {
+  void render_header_(std::vector<uint8_t> &out,
+                      const PrintOptions &options, PrintStyle &style) {
     std::string left = utf8_to_windows_1252_(options.header_left);
     std::string right = utf8_to_windows_1252_(options.header_right);
     if (left.empty() && right.empty()) return;
 
-    right = truncate_with_ellipsis_(right, TP_SMALL_COLUMNS);
-    const size_t right_start = TP_SMALL_COLUMNS - right.size();
+    right = truncate_with_ellipsis_(right, small_columns());
+    const size_t right_start = small_columns() - right.size();
     const size_t left_limit = right.empty()
-                                  ? TP_SMALL_COLUMNS
+                                  ? small_columns()
                                   : (right_start > 0 ? right_start - 1 : 0);
     left = truncate_with_ellipsis_(left, left_limit);
 
@@ -664,11 +669,10 @@ class ThermalPrinterComponent : public Component, public uart::UARTDevice {
     append_(out, {TP_GS, '(', 'k', 3, 0, 49, 81, 48, TP_LF});
   }
 
-  static void render_line_(std::vector<uint8_t> &out,
-                           const std::string &raw_utf8,
-                           const PrintOptions &options,
-                           bool reverse_wrapped_lines,
-                           PrintStyle &style) {
+  void render_line_(std::vector<uint8_t> &out,
+                    const std::string &raw_utf8,
+                    const PrintOptions &options,
+                    bool reverse_wrapped_lines, PrintStyle &style) {
     std::string qr;
     if (qr_payload_(raw_utf8, qr)) {
       apply_option_style_(out, options, style);
@@ -693,7 +697,7 @@ class ThermalPrinterComponent : public Component, public uart::UARTDevice {
       set_bold_(out, style, true);
       set_underline_(out, style, true);
       set_line_spacing_(out, line_spacing_(style.size, style.font));
-      append_wrapped_(out, line.substr(4), TP_COLUMNS,
+      append_wrapped_(out, line.substr(4), columns(),
                       reverse_wrapped_lines, style);
       set_underline_(out, style, false);
       set_bold_(out, style, false);
@@ -703,7 +707,7 @@ class ThermalPrinterComponent : public Component, public uart::UARTDevice {
       set_size_(out, style, 1);
       set_bold_(out, style, true);
       set_line_spacing_(out, line_spacing_(style.size, style.font));
-      append_wrapped_(out, line.substr(3), TP_COLUMNS / 2,
+      append_wrapped_(out, line.substr(3), columns() / 2,
                       reverse_wrapped_lines, style);
       set_bold_(out, style, false);
     } else if (starts_with_(line, "# ")) {
@@ -712,7 +716,7 @@ class ThermalPrinterComponent : public Component, public uart::UARTDevice {
       set_size_(out, style, 2);
       set_bold_(out, style, true);
       set_line_spacing_(out, line_spacing_(style.size, style.font));
-      append_wrapped_(out, line.substr(2), TP_COLUMNS / 2,
+      append_wrapped_(out, line.substr(2), columns() / 2,
                       reverse_wrapped_lines, style);
       set_bold_(out, style, false);
     } else if (line == "---" || line == "___" || line == "***") {
@@ -720,7 +724,7 @@ class ThermalPrinterComponent : public Component, public uart::UARTDevice {
       set_font_(out, style, 0);
       set_size_(out, style, 0);
       set_line_spacing_(out, line_spacing_(style.size, style.font));
-      append_text_(out, std::string(TP_COLUMNS, '-'));
+      append_text_(out, std::string(columns(), '-'));
       out.push_back(TP_LF);
     } else {
       set_alignment_(out, options.alignment);
@@ -751,8 +755,8 @@ class ThermalPrinterComponent : public Component, public uart::UARTDevice {
     set_underline_(out, style, false);
   }
 
-  static std::vector<uint8_t> render_document_(const std::string &markdown,
-                                                 const PrintOptions &options) {
+  std::vector<uint8_t> render_document_(const std::string &markdown,
+                                        const PrintOptions &options) {
     std::vector<uint8_t> out = build_init_only_();
     // Avoid heap fragmentation while formatting larger documents. Six output
     // bytes per input byte covers frequent ESC/POS style changes and line
@@ -836,14 +840,16 @@ class ThermalPrinterComponent : public Component, public uart::UARTDevice {
   bool known_hard_error_() const {
     if (!status_fresh_()) return false;
     return (status_valid_[1] && (status_[1] & 0x08)) ||
-           (status_valid_[2] && (status_[2] & 0x44)) ||
+           (status_valid_[2] && (status_[2] & (ep_382c_ ? 0x64 : 0x44))) ||
            (status_valid_[3] && (status_[3] & 0x68)) ||
            (status_valid_[4] && (status_[4] & 0x60));
   }
 
   std::string status_from_hardware_() const {
     if (!status_fresh_()) return "Status unbekannt (keine Antwort)";
-    if (status_valid_[4] && (status_[4] & 0x60)) return "Fehler: Papier leer";
+    if ((status_valid_[4] && (status_[4] & 0x60)) ||
+        (ep_382c_ && status_valid_[2] && (status_[2] & 0x20)))
+      return "Fehler: Papier leer";
     if (status_valid_[2] && (status_[2] & 0x04)) return "Fehler: Abdeckung offen";
     if (status_valid_[3] && (status_[3] & 0x08)) return "Fehler: Schneidwerk";
     if (status_valid_[3] && (status_[3] & 0x20)) return "Fehler: Eingangsspannung";
@@ -853,6 +859,8 @@ class ThermalPrinterComponent : public Component, public uart::UARTDevice {
     if ((status_valid_[4] && (status_[4] & 0x0C)) ||
         (status_valid_[2] && (status_[2] & 0x20)))
       return "Warnung: Papier fast leer";
+    if (ep_382c_ && status_valid_[1] && (status_[1] & 0x80))
+      return "Bereit (Ausdruck noch nicht entnommen)";
     return "Bereit";
   }
 };

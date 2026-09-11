@@ -15,6 +15,8 @@ from .const import (
     DOMAIN,
     MAX_MARKDOWN_LENGTH,
     entry_settings,
+    preview_profile,
+    printer_model,
     source_device_id,
 )
 from .devices import suggested_print_action
@@ -228,6 +230,7 @@ def _printer_payload(runtime: dict[str, Any]) -> dict[str, Any]:
     return {
         "device_id": runtime["device_id"],
         "name": entry.title,
+        "model": printer_model(entry),
         **runtime["entities"].as_dict(),
     }
 
@@ -278,16 +281,7 @@ async def websocket_get_state(
             ),
             "settings": settings,
             "max_markdown_bytes": MAX_MARKDOWN_LENGTH,
-            "preview_profile": {
-                "dots": 384,
-                "normal_columns": 32,
-                "small_columns": 42,
-                "normal_glyph_height": 24,
-                "small_glyph_height": 17,
-                "normal_line_height": 30,
-                "small_line_height": 23,
-                "double_line_height": 54,
-            },
+            "preview_profile": preview_profile(entry),
         },
     )
 

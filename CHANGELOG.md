@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0
+
+- Add Cashino EP-382C support: 80 mm paper, 72 mm / 576 dots printable, 48 Font A and 64 Font B columns.
+- Select the model during Home Assistant setup or in integration options. Device metadata and preview follow the selected printer; existing entries default to EP-261C without storage migration.
+- Add `esphome/thermal-printer-ep-382c.yaml` and the `cashino-ep-382c.yaml` package. Both models share transport/actions while firmware uses the selected model for headers, wrapping, headings and separators.
+- Adapt preview canvas width, text alignment and QR placeholder centering for both models, including printer switches and stale response handling.
+- Interpret EP-382C offline paper-out and uncollected-receipt status according to its manual.
+- Add a German installation guide with power variants, serial pinout, self-test, configuration and physical commissioning steps.
+- Test both model previews, emitted ESC/POS bytes, status replies, upgrade compatibility and Ethernet/Wi-Fi firmware configurations.
+
+Update HACS, restart Home Assistant and reload the dashboard. For a new EP-382C, compile/upload the new ESPHome template and select EP-382C in its separate integration entry. Both model settings must match. Existing EP-261C firmware continues to work. No physical EP-382C print test was performed for this release; follow `docs/ep-382c.md` for commissioning.
+
 ## 0.6.0
 
 - Select a configured printer directly from the card. Each ESPHome device remains a separate printer profile with its own private drafts, history and settings.

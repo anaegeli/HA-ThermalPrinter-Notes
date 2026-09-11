@@ -12,7 +12,8 @@
           "copies": "Anzahl Exemplare",
           "feed_lines": "Vorschubzeilen",
           "reverse_print": "Rückwärts drucken",
-          "cut": "Nach dem Druck schneiden"
+          "cut": "Nach dem Druck schneiden",
+          "printer_model": "Druckermodell"
         },
         "data_description": {
           "source_device_id": "Das ESPHome-Gerät, zu dem Status, Bereit, Warteschlange und Druckaktion gehören.",
@@ -21,7 +22,8 @@
           "copies": "Wird für alle Aufträge dieses Druckers verwendet.",
           "feed_lines": "Papierzeilen vor dem Schneiden.",
           "reverse_print": "Druckt in der vom ESPHome-Treiber unterstützten Rückwärtsrichtung.",
-          "cut": "Betätigt den Abschneider nach dem Ausdruck."
+          "cut": "Betätigt den Abschneider nach dem Ausdruck.",
+          "printer_model": "EP-261C: 58 mm; EP-382C: 80 mm. Muss zum ESPHome-Drucker-Package passen."
         }
       }
     },
@@ -44,7 +46,11 @@
           "copies": "Anzahl Exemplare",
           "feed_lines": "Vorschubzeilen",
           "reverse_print": "Rückwärts drucken",
-          "cut": "Nach dem Druck schneiden"
+          "cut": "Nach dem Druck schneiden",
+          "printer_model": "Druckermodell"
+        },
+        "data_description": {
+          "printer_model": "EP-261C: 58 mm; EP-382C: 80 mm. Muss zum ESPHome-Drucker-Package passen."
         }
       }
     },

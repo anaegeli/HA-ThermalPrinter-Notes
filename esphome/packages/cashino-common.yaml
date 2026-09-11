@@ -1,0 +1,105 @@
+# Shared Cashino UART, actions and entities. Select a model package.
+packages:
+  defaults: !include defaults.yaml
+
+external_components:
+  - source:
+      type: git
+      url: ${thermal_printer_repository}
+      ref: ${thermal_printer_ref}
+      path: esphome/components
+    components: [thermal_printer]
+    refresh: ${thermal_printer_refresh}
+
+uart:
+  id: printer_uart
+  tx_pin: ${printer_tx_pin}
+  rx_pin: ${printer_rx_pin}
+  baud_rate: ${printer_baud_rate}
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
+  rx_buffer_size: ${printer_rx_buffer_size}
+  # Printer DTR is intentionally unused. ESPHome flow_control_pin controls
+  # RS485 direction and is not TTL DTR/DSR flow control.
+
+thermal_printer:
+  id: printer_driver
+  uart_id: printer_uart
+
+api:
+  # Home Assistant action:
+  #   esphome.<device_name>_print_markdown
+  actions:
+    - action: print_markdown
+      variables:
+        markdown_content: string
+        print_user: string
+        print_timestamp: string
+        alignment: string
+        size: string
+        copies: int
+        feed_lines: int
+        reverse_print: bool
+        cut: bool
+      then:
+        - lambda: |-
+            PrintOptions options;
+            options.header_left = print_user.str();
+            options.header_right = print_timestamp.str();
+            options.alignment = alignment == "center" ? 1 :
+                                (alignment == "right" ? 2 : 0);
+            options.size = size == "double_width" ? 1 :
+                           (size == "double_size" ? 2 :
+                           (size == "small" ? 3 : 0));
+            const int32_t limited_feed = feed_lines < 0 ? 0 :
+                                         (feed_lines > 20 ? 20 : feed_lines);
+            options.feed_lines = static_cast<uint8_t>(limited_feed);
+            options.reverse_print = reverse_print;
+            options.cut = cut;
+            const int32_t limited_copies = copies < 1 ? 1 :
+                                           (copies > 5 ? 5 : copies);
+            const uint8_t safe_copies = static_cast<uint8_t>(limited_copies);
+            id(printer_driver)->enqueue_markdown(
+                markdown_content, options, safe_copies);
+
+button:
+  - platform: template
+    name: Feed Paper
+    icon: mdi:arrow-down-circle-outline
+    on_press:
+      - lambda: |-
+          id(printer_driver)->enqueue_feed(${printer_feed_button_lines});
+
+  - platform: template
+    name: Test Page
+    icon: mdi:printer-check
+    on_press:
+      - lambda: |-
+          id(printer_driver)->enqueue_test_page();
+
+text_sensor:
+  - platform: template
+    id: printer_status
+    name: Status
+    icon: mdi:printer-check
+    lambda: |-
+      return id(printer_driver)->status_text();
+    update_interval: 1s
+
+binary_sensor:
+  - platform: template
+    name: Ready
+    icon: mdi:printer-check-outline
+    lambda: |-
+      return id(printer_driver)->ready();
+
+sensor:
+  - platform: template
+    name: Queue
+    icon: mdi:tray-full
+    accuracy_decimals: 0
+    unit_of_measurement: jobs
+    lambda: |-
+      return static_cast<float>(id(printer_driver)->queue_depth());
+    update_interval: 1s

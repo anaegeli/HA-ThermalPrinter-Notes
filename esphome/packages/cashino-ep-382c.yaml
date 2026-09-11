@@ -1,0 +1,10 @@
+# Cashino EP-382C: 80 mm paper, 72 mm / 576 dots printable, 48/64 columns.
+# Serial connector: 1 DTR (unused), 2 TXD -> ESP RX, 3 RXD <- ESP TX, 4 GND.
+# H1: 24 V; H2: 12 V; peak current 5 A. Check the actual printer label.
+# Use TTL with compatible 3.3 V levels, or a suitable RS232 transceiver.
+# See docs/ep-382c.md for installation and commissioning.
+packages:
+  cashino_common: !include cashino-common.yaml
+
+thermal_printer:
+  model: EP-382C

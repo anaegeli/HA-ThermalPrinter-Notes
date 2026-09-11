@@ -13,11 +13,11 @@ from esphome.__main__ import write_cpp
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def validate(network, wifi_secrets=True, legacy=False, static=False, build=False):
+def validate(network, wifi_secrets=True, legacy=False, static=False, build=False, model="EP-261C"):
     with tempfile.TemporaryDirectory(prefix="thermal-printer-") as directory:
         work = Path(directory)
         shutil.copytree(ROOT / "esphome/packages", work / "packages")
-        printer = work / "packages/cashino-ep-261c.yaml"
+        printer = work / "packages/cashino-common.yaml"
         source = printer.read_text(encoding="utf-8")
         start = source.index("external_components:")
         end = source.index("uart:", start)
@@ -28,7 +28,9 @@ def validate(network, wifi_secrets=True, legacy=False, static=False, build=False
         if wifi_secrets:
             secrets += 'wifi_ssid: "Test-WLAN"\nwifi_password: "test-wifi-password"\n'
         (work / "secrets.yaml").write_text(secrets, encoding="utf-8")
-        template = ROOT / ("tests/fixtures/v0.5.0-device.yaml" if legacy else "esphome/thermal-printer.yaml")
+        template = ROOT / ("tests/fixtures/v0.5.0-device.yaml" if legacy else
+                           "esphome/thermal-printer-ep-382c.yaml" if model == "EP-382C" else
+                           "esphome/thermal-printer.yaml")
         source = template.read_text(encoding="utf-8")
         source = source.replace("network_type: ethernet", f"network_type: {network}")
         source = source.replace("printer_tx_pin: GPIO4", "printer_tx_pin: GPIO14").replace("printer_rx_pin: GPIO5", "printer_rx_pin: GPIO13")
@@ -36,7 +38,7 @@ def validate(network, wifi_secrets=True, legacy=False, static=False, build=False
             source = source.replace(f"  network_type: {network}\n", "")
         if static:
             source = source.replace("substitutions:\n", 'substitutions:\n  ethernet_ip: 192.0.2.10\n  ethernet_gw: 192.0.2.1\n  ethernet_mask: 255.255.255.0\n')
-        for name in ("olimex-esp32-poe-iso", "cashino-ep-261c"):
+        for name in ("olimex-esp32-poe-iso", "cashino-ep-261c", "cashino-ep-382c"):
             source = source.replace(f"github://anaegeli/HA-ThermalPrinter-Notes/esphome/packages/{name}.yaml@main", f"!include packages/{name}.yaml")
         config_file = work / "device.yaml"
         config_file.write_text(source, encoding="utf-8")
@@ -50,14 +52,17 @@ def validate(network, wifi_secrets=True, legacy=False, static=False, build=False
         assert config["uart"][0]["tx_pin"]["number"] == 14
         assert config["uart"][0]["rx_pin"]["number"] == 13
         assert "thermal_printer" in config
+        assert config["thermal_printer"]["model"] == model
         if static:
             assert str(config["ethernet"]["manual_ip"]["static_ip"]) == "192.0.2.10"
         else:
             assert "manual_ip" not in config[network]
         assert write_cpp(config) == 0, f"Code generation failed for {network}"
+        generated = Path(CORE.relative_src_path("main.cpp")).read_text(encoding="utf-8")
+        assert f"set_ep_382c({'true' if model == 'EP-382C' else 'false'})" in generated
         if build:
             subprocess.run([sys.executable, "-m", "esphome", "compile", str(config_file)], check=True)
-        print(f"Validated {network}; legacy={legacy}; wifi secrets={wifi_secrets}; static={static}")
+        print(f"Validated {model}/{network}; legacy={legacy}; wifi secrets={wifi_secrets}; static={static}")
 
 
 if __name__ == "__main__":
@@ -66,5 +71,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     validate("ethernet", wifi_secrets=False, build=args.compile)
     validate("wifi", build=args.compile)
+    validate("ethernet", wifi_secrets=False, model="EP-382C", build=args.compile)
+    validate("wifi", model="EP-382C", build=args.compile)
     validate("ethernet", wifi_secrets=False, legacy=True)
     validate("ethernet", wifi_secrets=False, legacy=True, static=True)
