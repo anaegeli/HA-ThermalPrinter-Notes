@@ -10,15 +10,8 @@
 # from a correctly rated supply. Verify printer TX is safe for ESP32 3.3 V IO.
 ################################################################################
 
-substitutions:
-  printer_tx_pin: GPIO4
-  printer_rx_pin: GPIO5
-  printer_baud_rate: "9600"
-  printer_rx_buffer_size: "256"
-  printer_feed_button_lines: "5"
-  thermal_printer_repository: https://github.com/anaegeli/HA-ThermalPrinter-Notes
-  thermal_printer_ref: main
-  thermal_printer_refresh: 1h
+packages:
+  defaults: !include defaults.yaml
 
 external_components:
   - source:

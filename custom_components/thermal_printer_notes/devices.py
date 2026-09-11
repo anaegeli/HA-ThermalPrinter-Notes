@@ -100,12 +100,8 @@ def suggested_print_action(hass: HomeAssistant, device_id: str) -> str:
     if hass.services.has_service("esphome", candidate_service):
         return f"esphome.{candidate_service}"
 
-    matches = sorted(
-        service
-        for service in hass.services.async_services().get("esphome", {})
-        if service.endswith("_print_markdown")
-    )
-    return f"esphome.{matches[0]}" if len(matches) == 1 else ""
+    # Another device's only remaining action is not a safe fallback.
+    return ""
 
 
 def find_source_device_from_action(hass: HomeAssistant, action: str) -> str:

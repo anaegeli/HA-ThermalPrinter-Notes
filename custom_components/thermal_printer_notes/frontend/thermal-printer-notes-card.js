@@ -164,6 +164,11 @@ class ThermalPrinterNotesCard extends LitElement {
     this._maxBytes = 16384;
     this._selection = { start: 0, end: 0 };
     this._savePromise = Promise.resolve();
+    this._printers = [];
+    this._selectedDeviceId = "";
+    this._generation = 0;
+    this._pendingRequests = 0;
+    this._switching = false;
   }
 
   setConfig(config) {
@@ -171,12 +176,19 @@ class ThermalPrinterNotesCard extends LitElement {
     const previousDevice = this._config?.device_id || "";
     const columns = Math.min(3, Math.max(1, Number(config.columns || 2)));
     this._config = { ...config, device_id: config.device_id || "", columns };
-    if (previousDevice !== this._config.device_id) this._resetForPrinter();
+    if (previousDevice !== this._config.device_id) {
+      this._selectedDeviceId = this._config.device_id;
+      this._resetForPrinter();
+    }
   }
 
   set hass(hass) {
     const sessionUserId = hass?.user?.id || "";
-    if (this._sessionUserId && sessionUserId !== this._sessionUserId) this._resetForPrinter();
+    if (this._sessionUserId && sessionUserId !== this._sessionUserId) {
+      this._printers = [];
+      this._selectedDeviceId = this._config?.device_id || "";
+      this._resetForPrinter();
+    }
     this._sessionUserId = sessionUserId;
     this._hass = hass;
     if (!this._loaded && !this._loading) this._loadState();
@@ -193,7 +205,7 @@ class ThermalPrinterNotesCard extends LitElement {
     const t = (key) => translate(detectLanguage(), key);
     return {
       schema: [
-        { name: "device_id", required: true, selector: { device: { filter: { integration: "thermal_printer_notes" } } } },
+        { name: "device_id", required: false, selector: { device: { filter: { integration: "thermal_printer_notes" } } } },
         {
           name: "columns",
           required: true,
@@ -223,7 +235,12 @@ class ThermalPrinterNotesCard extends LitElement {
   _t(key, replacements = {}) { return translate(this._language(), key, replacements); }
 
   _resetForPrinter() {
+    this._generation++;
     clearTimeout(this._saveTimer);
+    this._savePromise = Promise.resolve();
+    this._saving = false;
+    this._busy = false;
+    this._message = "";
     this._loaded = false;
     this._loading = false;
     this._draft = this._emptyDraft();
@@ -233,26 +250,68 @@ class ThermalPrinterNotesCard extends LitElement {
     this._userName = "";
   }
 
-  async _request(type, extra = {}) {
+  async _request(type, extra = {}, context = this._requestContext()) {
     if (!this._hass?.connection) throw new Error(this._t("error.not_connected"));
-    return this._hass.connection.sendMessagePromise({
-      type,
-      device_id: this._config?.device_id || "",
-      ...extra,
-    });
+    if (context.generation !== this._generation) throw { stale: true };
+    this._pendingRequests++;
+    this.requestUpdate();
+    try {
+      const result = await context.connection.sendMessagePromise({
+        type,
+        ...(type.endsWith("/list_printers") ? {} : { device_id: context.deviceId }),
+        ...extra,
+      });
+      if (context.generation !== this._generation) throw { stale: true };
+      return result;
+    } catch (err) {
+      if (context.generation !== this._generation) throw { stale: true };
+      throw err;
+    } finally {
+      this._pendingRequests--;
+      this.requestUpdate();
+    }
+  }
+
+  _requestContext() {
+    return { generation: this._generation, deviceId: this._selectedDeviceId,
+      connection: this._hass?.connection };
+  }
+
+  async _selectPrinter(event) {
+    const deviceId = event.target.value;
+    event.target.value = this._selectedDeviceId;
+    if (!deviceId || deviceId === this._selectedDeviceId || this._switching ||
+        this._busy || this._saving || this._pendingRequests) return;
+    this._switching = true;
+    this.requestUpdate();
+    try {
+      // Keep the old printer selected if its draft cannot be saved.
+      if (this._loaded && (!this._checkLength() || !await this._saveDraft(false))) return;
+      this._selectedDeviceId = deviceId;
+      this._resetForPrinter();
+      await this._loadState();
+    } finally {
+      this._switching = false;
+      this.requestUpdate();
+    }
   }
 
   async _loadState() {
     if (!this._hass?.connection || this._loading) return;
     this._loading = true;
+    const generation = this._generation;
     try {
+      const { printers } = await this._request("thermal_printer_notes/list_printers");
+      this._printers = printers || [];
+      if (!this._selectedDeviceId) this._selectedDeviceId = this._printers[0]?.device_id || "";
+      if (!this._selectedDeviceId) throw { code: "not_configured" };
       const state = await this._request("thermal_printer_notes/get_state");
       this._applyState(state);
       this._loaded = true;
     } catch (err) {
       this._showError(err, "error.load_state");
     } finally {
-      this._loading = false;
+      if (generation === this._generation) this._loading = false;
       this.requestUpdate();
     }
   }
@@ -291,8 +350,10 @@ class ThermalPrinterNotesCard extends LitElement {
     if (this._printableBytes() > this._maxBytes) return false;
     this._saving = true;
     this.requestUpdate();
-    this._savePromise = this._savePromise.then(async () => {
-      const result = await this._request("thermal_printer_notes/save_draft", this._documentPayload());
+    const context = this._requestContext();
+    const document = this._documentPayload();
+    this._savePromise = this._savePromise.catch(() => {}).then(async () => {
+      const result = await this._request("thermal_printer_notes/save_draft", document, context);
       if (result?.draft?.updated_at) this._draft = { ...this._draft, updated_at: result.draft.updated_at };
     });
     try {
@@ -300,23 +361,24 @@ class ThermalPrinterNotesCard extends LitElement {
       if (notify) this._showMessage(this._t("success.draft_saved"));
       return true;
     } catch (err) {
-      this._savePromise = Promise.resolve();
       this._showError(err, "error.save_draft");
       return false;
     } finally {
-      this._saving = false;
+      if (context.generation === this._generation) this._saving = false;
       this.requestUpdate();
     }
   }
 
   async _saveToHistory() {
     if (!this._checkLength()) return;
+    const context = this._requestContext();
+    const document = this._documentPayload();
     clearTimeout(this._saveTimer);
     this._saving = true;
     this._message = "";
     try {
       await this._savePromise.catch(() => { this._savePromise = Promise.resolve(); });
-      const result = await this._request("thermal_printer_notes/save_history", this._documentPayload());
+      const result = await this._request("thermal_printer_notes/save_history", document, context);
       if (result?.draft?.updated_at) this._draft = { ...this._draft, updated_at: result.draft.updated_at };
       await this._refreshHistory();
       this._showMessage(this._t("success.history_saved"));
@@ -324,20 +386,24 @@ class ThermalPrinterNotesCard extends LitElement {
       this._savePromise = Promise.resolve();
       this._showError(err, "error.save_history");
     } finally {
-      this._saving = false;
+      if (context.generation === this._generation) this._saving = false;
       this.requestUpdate();
     }
   }
 
   async _print() {
     if (!this._checkLength()) return;
+    const context = this._requestContext();
+    const document = this._documentPayload();
     clearTimeout(this._saveTimer);
     this._busy = true;
     this._message = "";
     try {
-      await this._request("thermal_printer_notes/print", this._documentPayload());
+      await this._savePromise.catch(() => {});
+      await this._request("thermal_printer_notes/print", document, context);
       this._showMessage(this._t("success.print_submitted"));
     } catch (err) {
+      if (err?.stale) return;
       this._showError(err, "error.print");
     }
     try { await this._refreshHistory(); } catch (err) { this._showError(err, "error.refresh_history"); }
@@ -475,6 +541,7 @@ class ThermalPrinterNotesCard extends LitElement {
 
   _showMessage(message) { this._message = message; this._messageType = "success"; this.requestUpdate(); }
   _showError(err, fallbackKey) {
+    if (err?.stale) return;
     const fallback = this._t(fallbackKey);
     const localizedCode = err?.code ? this._t(`error.${err.code}`) : "";
     const hasLocalizedCode = localizedCode && localizedCode !== `error.${err?.code}`;
@@ -731,15 +798,28 @@ class ThermalPrinterNotesCard extends LitElement {
     </div>`;
   }
 
+  _renderPrinterSelector() {
+    return html`<div class="field"><label for="printer-select">${this._t("field.printer")}</label>
+      <select id="printer-select" .value=${this._selectedDeviceId}
+        ?disabled=${this._switching || this._busy || this._saving || this._pendingRequests > 0}
+        @change=${this._selectPrinter}>
+        ${!this._printers.some((printer) => printer.device_id === this._selectedDeviceId)
+          ? html`<option value=${this._selectedDeviceId}>${this._t("error.printer_unavailable")}</option>` : ""}
+        ${this._printers.map((printer) => html`<option value=${printer.device_id}
+          ?selected=${printer.device_id === this._selectedDeviceId}>${printer.name}</option>`)}
+      </select></div>`;
+  }
+
   render() {
     if (!this._config) return html``;
-    if (!this._loaded) return html`<ha-card><div class="loading">${this._message || this._t("loading.personal_data")}</div></ha-card>`;
+    if (!this._loaded) return html`<ha-card><div class="content">${this._renderPrinterSelector()}<div class="loading">${this._message || this._t("loading.personal_data")}</div></div></ha-card>`;
     const bytes = this._printableBytes();
     return html`<ha-card><div class="content">
       <div class="head"><div><div class="title">${this._printer.name || this._t("header.default_printer")}</div><div class="muted">${this._t("header.subtitle")}</div></div><div class="user"><ha-icon icon="mdi:account-outline"></ha-icon>${this._userName}</div></div>
+      ${this._renderPrinterSelector()}
       ${this._renderStatus()}
       ${this._message ? html`<div class="message ${this._messageType}">${this._message}</div>` : ""}
-      <div class="workspace" data-columns=${String(this._config.columns)}>
+      <fieldset class="workspace" style="border:0;padding:0;margin:0;min-width:0" ?disabled=${this._switching} data-columns=${String(this._config.columns)}>
         <section class="editor">
           <div class="field"><label for="note-title">${this._t("field.title")}</label><input id="note-title" maxlength="80" autocomplete="off" .value=${this._draft.title || ""} @input=${(event) => this._updateDraft("title", event.target.value)} placeholder=${this._t("field.title_placeholder")} /></div>
           <div class="field"><label for="note-markdown">${this._t("field.markdown")}</label>${this._renderMarkdownTools()}<textarea id="note-markdown" autocomplete="off" .value=${this._draft.markdown || ""} @input=${(event) => { this._captureSelection(event); this._updateDraft("markdown", event.target.value); }} @select=${this._captureSelection} @click=${this._captureSelection} @keyup=${this._captureSelection} placeholder=${this._t("field.markdown_placeholder")}></textarea><div class="count ${bytes > this._maxBytes ? "invalid" : ""}">${bytes.toLocaleString(this._language() === "de" ? "de-CH" : "en-GB")} / ${this._maxBytes.toLocaleString(this._language() === "de" ? "de-CH" : "en-GB")} UTF-8-Bytes</div></div>
@@ -754,7 +834,7 @@ class ThermalPrinterNotesCard extends LitElement {
         </section>
         <section class="preview"><div class="section-title"><ha-icon icon="mdi:eye-outline"></ha-icon>${this._t("preview.title")}</div>${this._renderPreview()}</section>
         <section class="history-panel"><div class="history-head" @click=${() => { this._historyOpen = !this._historyOpen; }}><div class="section-title" style="margin:0"><ha-icon icon="mdi:history"></ha-icon>${this._t("history.title", { count: this._history.length })}</div><ha-icon icon=${this._historyOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></div>${this._renderHistory()}</section>
-      </div>
+      </fieldset>
       <div class="settings"><div class="section-title"><ha-icon icon="mdi:tune-variant"></ha-icon>${this._t("settings.title")}</div><div class="settings-text">${this._t(this._settings.reverse_print ? "settings.reverse" : "settings.forward")} · ${this._t("settings.copies", { count: this._settings.copies ?? 1 })} · ${this._t("settings.feed", { count: this._settings.feed_lines ?? 4 })} · ${this._t(this._settings.cut ? "settings.cut_on" : "settings.cut_off")}</div></div>
     </div></ha-card>`;
   }

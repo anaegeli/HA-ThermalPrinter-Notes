@@ -71,7 +71,7 @@ class ThermalPrinterComponent : public Component, public uart::UARTDevice {
 
   void dump_config() override {
     ESP_LOGCONFIG("thermal_printer", "Cashino EP-261C Thermal Printer");
-    ESP_LOGCONFIG("thermal_printer", "  Driver version: 0.5.0");
+    ESP_LOGCONFIG("thermal_printer", "  Driver version: 0.6.0");
   }
 
   void begin() {

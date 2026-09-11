@@ -15,6 +15,8 @@ const sandbox = {
   Intl,
   Date,
   console,
+  clearTimeout,
+  setTimeout,
   confirm: () => false,
   customElements: {
     get: () => undefined,
@@ -150,6 +152,7 @@ assert.ok(chunks.every((chunk) => chunk.height <= 8000), "canvas chunks stay bel
 
 const deviceTemplateSource = fs.readFileSync("esphome/thermal-printer.yaml", "utf8");
 const boardPackageSource = fs.readFileSync("esphome/packages/olimex-esp32-poe-iso.yaml", "utf8");
+const defaultsSource = fs.readFileSync("esphome/packages/defaults.yaml", "utf8");
 const printerPackageSource = fs.readFileSync("esphome/packages/cashino-ep-261c.yaml", "utf8");
 const componentSource = fs.readFileSync("esphome/components/thermal_printer/__init__.py", "utf8");
 const driverSource = fs.readFileSync("esphome/components/thermal_printer/thermal_printer.h", "utf8");
@@ -160,6 +163,7 @@ assert.match(deviceTemplateSource, /printer_tx_pin: GPIO4/, "printer TX is an ov
 assert.match(deviceTemplateSource, /printer_rx_pin: GPIO5/, "printer RX is an overridable substitution");
 assert.match(boardPackageSource, /key: \$\{api_encryption_key\}/, "board package consumes the API substitution");
 assert.match(boardPackageSource, /password: \$\{ota_password\}/, "board package consumes the OTA substitution");
+assert.match(defaultsSource, /network_type: ethernet/, "legacy imports default to Ethernet");
 assert.match(printerPackageSource, /path: esphome\/components/, "printer package loads the external component path");
 assert.match(printerPackageSource, /ref: \$\{thermal_printer_ref\}/, "external component follows the configured Git ref");
 assert.match(printerPackageSource, /size == "small" \? 3/, "ESPHome maps small to driver mode 3");
@@ -177,3 +181,4 @@ assert.match(driverSource, /append_\(out, \{TP_GS, '!', character_size_\(style\.
 assert.doesNotMatch(cardSource, /<option value="double_width">\$\{this\._t\("size\.double_width"\)\}/, "new drafts do not offer global double width");
 
 console.log("EP-261C preview model checks passed");
+module.exports = sandbox.Card;

@@ -1,0 +1,16 @@
+# Olimex ESP32-POE-ISO WROOM clock output; WROVER needs different clock settings.
+# Preserve existing installations using ethernet_ip/ethernet_gw/ethernet_mask.
+# Without these overrides Ethernet uses DHCP.
+packages:
+  static_address: >-
+    ${ {"ethernet": {"manual_ip": {"static_ip": ethernet_ip, "gateway": ethernet_gw, "subnet": ethernet_mask}}} if ethernet_ip is defined else {} }
+
+ethernet:
+  type: ${ethernet_type}
+  mdc_pin: ${ethernet_mdc_pin}
+  mdio_pin: ${ethernet_mdio_pin}
+  clk:
+    pin: ${ethernet_clock_pin}
+    mode: ${ethernet_clock_mode}
+  phy_addr: ${ethernet_phy_address}
+  power_pin: ${ethernet_power_pin}
