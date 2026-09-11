@@ -21,7 +21,7 @@ substitutions:
   web_server_local: "true"
   web_server_include_internal: "true"
   project_name: anaegeli.thermal-printer-notes
-  project_version: "0.8.0"
+  project_version: "0.8.1"
   esp32_board: esp32-poe-iso
   esp32_variant: esp32
   esp32_framework: esp-idf

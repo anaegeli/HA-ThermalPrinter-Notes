@@ -61,4 +61,4 @@ Eine ältere Konfiguration mit lokalem `thermal_printer.h`, manueller `new Therm
 
 Vorhandenen Gerätenamen, API-/OTA-Secrets, Pins, Baudrate, Netzwerk, Hotspot und Weboberfläche übernehmen. Danach in ESPHome validieren und kompilieren; erst bei verfügbarem Gerät übertragen. Ohne ursprüngliche Fehlermeldung lässt sich ein früherer Kompilier- oder Verbindungsfehler nicht eindeutig erklären.
 
-Die alten Drucker-Package-URLs bleiben nutzbar. `defaults.yaml` liefert Ersatzwerte für ältere Minimal-Konfigurationen. Die alte EP-382C-Template-URL verweist nur noch auf dieselbe gemeinsame Basis mit vorausgewähltem Modell; neue Dateien verwenden direkt `thermal-printer.yaml`.
+Die alten Drucker-Package-URLs bleiben nutzbar. `defaults.yaml` liefert Ersatzwerte für ältere Minimal-Konfigurationen. Der separate EP-382C-Template-Einstieg ist ab v0.8.1 entfernt. Falls eine ältere Datei noch diese Template-URL mit `@main` importiert, auf die gemeinsame `thermal-printer.yaml` umstellen und oben `printer_model: ep-382c` setzen. Die historischen Releases bleiben unverändert verfügbar.
