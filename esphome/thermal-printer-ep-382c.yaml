@@ -1,30 +1,13 @@
-# Device configuration: one ESP32 and one Cashino EP-382C printer.
-# Edit installation settings here. Shared hardware defaults live in
-# esphome/packages/defaults.yaml and may be overridden below when needed.
+# Compatibility entry point for old dashboard links.
+# New installations use thermal-printer.yaml and set printer_model: ep-382c.
 substitutions:
-  # Choose exactly one: ethernet or wifi. Changing this requires new firmware.
-  network_type: ethernet
+  printer_model: ep-382c
   device_name: thermal-printer-80
   friendly_name: Thermal Printer 80 mm
-
-  api_encryption_key: !secret esphome_api_encryption_key
-  ota_password: !secret esphome_ota
-  # Wi-Fi only: add wifi_ssid and wifi_password to your local secrets.yaml.
-  # Ethernet installations do not need Wi-Fi secrets.
-
-  # UART wiring for this installation (ESP TX -> printer RX and vice versa).
-  printer_tx_pin: GPIO4
-  printer_rx_pin: GPIO5
-  # Match the baud rate printed on the printer self-test page.
-  printer_baud_rate: "9600"
-
-# Packages and the external component follow main by default.
-# For a pinned installation, set both @main refs below and
-# substitutions.thermal_printer_ref to the same release tag.
+  thermal_printer_ref: main
 packages:
-  olimex_esp32_poe_iso: github://anaegeli/HA-ThermalPrinter-Notes/esphome/packages/olimex-esp32-poe-iso.yaml@main
-  cashino_ep_382c: github://anaegeli/HA-ThermalPrinter-Notes/esphome/packages/cashino-ep-382c.yaml@main
+  unified: github://anaegeli/HA-ThermalPrinter-Notes/esphome/thermal-printer.yaml@${thermal_printer_ref}
 
 dashboard_import:
   package_import_url: github://anaegeli/HA-ThermalPrinter-Notes/esphome/thermal-printer-ep-382c.yaml@main
-  import_full_config: false
+  import_full_config: true

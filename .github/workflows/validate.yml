@@ -43,7 +43,24 @@ jobs:
           python-version: "3.13"
       - run: pip install esphome==${{ matrix.version }}
       - name: Validate both printers with Ethernet and Wi-Fi
-        run: python tests/test_esphome.py ${{ matrix.version == '2026.8.2' && '--compile' || '' }}
+        run: python tests/test_esphome.py
+
+  firmware:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        model: ["EP-261C", "EP-382C"]
+        network: [ethernet, wifi]
+        ip_mode: [dhcp, static]
+    steps:
+      - uses: actions/checkout@v7.0.0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: pip install esphome==2026.8.2
+      - name: Compile selected printer, network and address mode
+        run: python tests/test_esphome.py --compile --model ${{ matrix.model }} --network ${{ matrix.network }} --ip-mode ${{ matrix.ip_mode }}
 
   hacs:
     runs-on: ubuntu-latest

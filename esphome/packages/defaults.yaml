@@ -4,8 +4,24 @@ substitutions:
   device_name: thermal-printer
   friendly_name: Thermal Printer
   network_type: ethernet
+  printer_model: ep-261c
+  ip_mode: dhcp
+  static_ip: ""
+  gateway: ""
+  subnet: "255.255.255.0"
+  dns1: "0.0.0.0"
+  dns2: "0.0.0.0"
+  network_use_address: ""
+  wifi_ap_enabled: "false"
+  wifi_ap_ssid: "${device_name}_FH"
+  wifi_ap_password: ""
+  web_server_enabled: "false"
+  web_server_port: "80"
+  web_server_version: "3"
+  web_server_local: "true"
+  web_server_include_internal: "true"
   project_name: anaegeli.thermal-printer-notes
-  project_version: "0.7.0"
+  project_version: "0.8.0"
   esp32_board: esp32-poe-iso
   esp32_variant: esp32
   esp32_framework: esp-idf

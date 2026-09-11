@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0
+
+- Use one complete `thermal-printer.yaml` with a grouped settings block for both printer models, board hardware, network, addresses, UART, API/OTA, hotspot and web interface.
+- Select the model via `printer_model`; select Ethernet/Wi-Fi and DHCP/static IP independently. Include DNS and a temporary upload address for IP changes.
+- Use one Git reference for packages and driver. Dashboard import retains the complete settings block.
+- Add optional Wi-Fi fallback AP/captive portal and local web server, preserving the features used by existing standalone configurations.
+- Keep old package entry points and legacy Ethernet static-IP settings compatible. The old EP-382C template becomes a redirect to the shared template.
+- Validate all eight model/network/address combinations, optional features and invalid inputs; compile all eight variants in CI.
+
+Existing devices are not flashed by HACS. Preserve the real UART pins, device name and local secrets when replacing an older standalone YAML. The new external component replaces manual header inclusion, driver construction and interval servicing. No physical device was available for commissioning.
+
 ## 0.7.0
 
 - Add Cashino EP-382C support: 80 mm paper, 72 mm / 576 dots printable, 48 Font A and 64 Font B columns.

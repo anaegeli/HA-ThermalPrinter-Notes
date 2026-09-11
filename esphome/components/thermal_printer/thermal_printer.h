@@ -76,7 +76,7 @@ class ThermalPrinterComponent : public Component, public uart::UARTDevice {
     ESP_LOGCONFIG("thermal_printer", "Cashino %s Thermal Printer (%u/%u columns)",
                   model(), static_cast<unsigned>(columns()),
                   static_cast<unsigned>(small_columns()));
-    ESP_LOGCONFIG("thermal_printer", "  Driver version: 0.7.0");
+    ESP_LOGCONFIG("thermal_printer", "  Driver version: 0.8.0");
   }
 
   void begin() {

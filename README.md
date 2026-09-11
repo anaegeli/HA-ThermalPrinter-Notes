@@ -104,84 +104,46 @@ Text im Eingabefeld markieren und einen Knopf drücken. Die Karte setzt die zum 
 | Modell | Papierbreite | Druckpunkte | Normal / klein | ESPHome-Template |
 |---|---|---|---|---|
 | Cashino EP-261C | 58 mm | 384 | 32 / 42 Zeichen | [thermal-printer.yaml](esphome/thermal-printer.yaml) |
-| Cashino EP-382C | 80 mm | 576 | 48 / 64 Zeichen | [thermal-printer-ep-382c.yaml](esphome/thermal-printer-ep-382c.yaml) |
+| Cashino EP-382C | 80 mm | 576 | 48 / 64 Zeichen | [thermal-printer.yaml](esphome/thermal-printer.yaml), `printer_model: ep-382c` |
 
 Die Auswahl **Druckermodell** in Home Assistant muss zum ESPHome-Package des Geräts passen. Sie lässt sich später über die Integrationsoptionen ändern. Bestehende Einträge ohne Modellangabe verwenden weiterhin EP-261C. Entwürfe und Verläufe bleiben erhalten.
 
-Für den neuen 80-mm-Drucker gibt es eine [deutsche EP-382C-Anleitung](docs/ep-382c.md) mit Stromversorgung, Pinbelegung, Selbsttest und vollständiger Konfiguration. Die folgenden allgemeinen ESPHome-Beispiele zeigen weiterhin das EP-261C-Template; für den EP-382C das eigene Template verwenden. Beide Modelle unterstützen Ethernet und WLAN. Die Unterstützung basiert auf dem Handbuch und Softwareprüfungen; der physische EP-382C-Drucktest steht noch aus.
+Für den neuen 80-mm-Drucker gibt es eine [deutsche EP-382C-Anleitung](docs/ep-382c.md) mit Stromversorgung, Pinbelegung, Selbsttest und vollständiger Konfiguration. Beide Modelle verwenden dieselbe Basisdatei; `printer_model` wählt das passende Package. Beide Modelle unterstützen Ethernet und WLAN. Die Unterstützung basiert auf dem Handbuch und Softwareprüfungen; der physische EP-382C-Drucktest steht noch aus.
 
 ## ESPHome-Installation
 
-Seit Version 0.6.0 sind Geräteeinstellungen, gemeinsame Vorgaben und Netzwerkkonfiguration klar getrennt:
+Ab v0.8.0 gibt es eine gemeinsame [thermal-printer.yaml](esphome/thermal-printer.yaml). Alle Geräteeinstellungen stehen in einem gegliederten `substitutions`-Block ganz am Anfang. Der Dashboard-Import übernimmt die vollständige Datei. Für den Wechsel des Druckermodells müssen keine Imports bearbeitet werden.
 
-```text
-esphome/
-├── thermal-printer.yaml
-├── thermal-printer-ep-382c.yaml
-├── packages/
-│   ├── olimex-esp32-poe-iso.yaml
-│   ├── defaults.yaml
-│   ├── network-ethernet.yaml
-│   ├── network-wifi.yaml
-│   ├── cashino-common.yaml
-│   ├── cashino-ep-261c.yaml
-│   └── cashino-ep-382c.yaml
-└── components/
-    └── thermal_printer/
-        ├── __init__.py
-        └── thermal_printer.h
-```
+| Bereich | Einstellungen |
+|---|---|
+| Gerät | Name, Anzeigename, `printer_model: ep-261c` oder `ep-382c` |
+| Netzwerk | `network_type: ethernet` oder `wifi` |
+| Adressen | `ip_mode: dhcp` oder `static`, IP, Gateway, Netzmaske und DNS |
+| WLAN-Fallback | Hotspot aktivieren, SSID, Passwort; Captive Portal wird mitgeladen |
+| Zugang | API-Verschlüsselung und OTA-Passwort als lokale Secrets |
+| Oberfläche | Webserver aktivieren, Port, Version, lokale Ressourcen, interne Entitäten |
+| Hardware | ESP32-Board, Variante, Framework, Ethernet-Hardware und UART-Pins |
+| Software | Ein gemeinsamer `thermal_printer_ref` für Packages und Treiber |
 
-Nur das zum Modell passende ESPHome-Template wird als lokale Gerätekonfiguration benötigt. Es lädt die beiden Packages über die ESPHome-Kurzform direkt aus `main`. Das Drucker-Package lädt den C++-Treiber als Git-basiertes `external_component`. Das manuelle Kopieren von `thermal_printer.h` entfällt. Für reproduzierbare Builds müssen Packages und Treiber auf denselben Release-Tag gesetzt werden; `main` ist ein veränderlicher Entwicklungskanal.
+Die [Einrichtungsanleitung](docs/configuration.md) erklärt jeden Bereich, DHCP/feste IP und die Umstellung bestehender Dateien. WLAN verwendet weiterhin `wifi_ssid` und `wifi_password` aus `secrets.yaml`; diese werden nur bei ausgewähltem WLAN geladen. Ethernet braucht keine WLAN-Secrets. Alle übrigen Geräteeinstellungen lassen sich oben in der Basisdatei ändern.
 
-Das lokale Template enthält nur Netzwerkart, Gerätename, API-/OTA-Secrets und die konkrete UART-Verdrahtung. Alle gemeinsamen Standardwerte stehen einmal in `packages/defaults.yaml`. Die beiden bestehenden Package-Einstiegspunkte laden diese Vorgaben, damit auch ältere Minimal-Konfigurationen erhalten bleiben. Board-, Netzwerk- und Drucker-Packages verwenden die Substitutionen, ohne ihre Werte erneut zu definieren. Bewusste lokale Überschreibungen haben Vorrang.
+Das allgemeine Template verwendet Ethernet, DHCP und GPIO4/5. Tatsächliche Verdrahtung und vorhandene Einstellungen übernehmen: Bei einer Installation mit GPIO14/13 müssen diese Pins auch in der neuen Datei stehen. Der Board-Standard ist Olimex ESP32-POE-ISO WROOM; andere Boards benötigen passende Board- und Pin-Einstellungen.
 
-Die Vorgaben des bisherigen Templates entsprechen dem Olimex ESP32-POE-ISO WROOM und dem EP-261C an GPIO4/GPIO5 mit 9600 Baud. Eine bestehende abweichende Verdrahtung muss in der lokalen Datei erhalten bleiben. Andere ESP32-Boards benötigen passende lokale `esp32_board`-/`esp32_variant`- und Pin-Überschreibungen; `network_type` allein ändert keine Hardwarebelegung.
+### Aufbau der Packages
 
-Minimaler Inhalt nach dem ESPHome-Dashboard-Import:
+- `olimex-esp32-poe-iso.yaml`: ESP32, API, OTA, Logger sowie Auswahl von Netzwerk, Adressen und Weboberfläche.
+- `network-ethernet.yaml` / `network-wifi.yaml`: nur die gewählte Netzwerkschnittstelle; WLAN enthält bei Bedarf Hotspot und Captive Portal.
+- `cashino-ep-261c.yaml` / `cashino-ep-382c.yaml`: Auswahl des Druckermodells.
+- `cashino-common.yaml`: gemeinsamer UART, Druckaktionen, Tasten und Status-Entitäten.
+- `defaults.yaml`: kompatible Ersatzwerte für ältere Minimal-Konfigurationen. Die Angaben in der lokalen Basisdatei haben Vorrang.
 
-```yaml
-substitutions:
-  network_type: ethernet  # ethernet oder wifi
-  device_name: thermal-printer
-  friendly_name: Thermal Printer
-  api_encryption_key: !secret esphome_api_encryption_key
-  ota_password: !secret esphome_ota
+Die bisherige `thermal-printer-ep-382c.yaml` ist nur noch ein kleiner Kompatibilitätsverweis auf die gemeinsame Basis. Neue Installationen verwenden `thermal-printer.yaml`. Bestehende Package-URLs bleiben gültig; die lokale Header-Datei `thermal_printer.h` wird nicht mehr benötigt.
 
-packages:
-  olimex_esp32_poe_iso: github://anaegeli/HA-ThermalPrinter-Notes/esphome/packages/olimex-esp32-poe-iso.yaml@main
-  cashino_ep_261c: github://anaegeli/HA-ThermalPrinter-Notes/esphome/packages/cashino-ep-261c.yaml@main
-```
+### Update und Prüfung
 
-`main` ist bewusst der Standardkanal. ESPHome aktualisiert die externe C++-Komponente gemäss `thermal_printer_refresh` standardmässig stündlich; Remote-Packages werden von ESPHome ebenfalls zwischengespeichert und regelmässig aktualisiert. Wer eine unveränderliche Installation benötigt, kann die beiden `@main`-Angaben und `thermal_printer_ref` auf denselben Release-Tag setzen.
+Integrationseinträge nicht löschen: Sie verknüpfen die privaten Entwürfe und Verläufe. Das HACS-Update ändert keine laufende ESP-Firmware. Die bestehende Druckaktion und ihre Parameter bleiben gleich. Firmware wird separat kompiliert und bei vorhandenem Gerät übertragen.
 
-### WLAN oder Ethernet
-
-`network_type: ethernet` lädt ausschliesslich das Ethernet-Package. `network_type: wifi` lädt ausschliesslich das WLAN-Package. Dies verwendet ESPHomes [dynamische Package-Dateinamen](https://esphome.io/components/packages/#including-packages-with-dynamic-filenames). Die Wahl erfolgt beim Erstellen der Firmware, nicht während des Betriebs.
-
-Bei WLAN werden zusätzlich diese Einträge im lokalen `secrets.yaml` benötigt:
-
-```yaml
-wifi_ssid: "Mein WLAN"
-wifi_password: "Mein WLAN-Passwort"
-```
-
-Die Secrets werden erst im gewählten WLAN-Package gelesen; Ethernet benötigt keine WLAN-Secrets. API-Verschlüsselung, OTA-Zugang und Druckaktionen bleiben in beiden Varianten gleich. Ohne manuelle IP-Konfiguration wird DHCP verwendet.
-
-Vorhandene Ethernet-Substitutionen `ethernet_ip`, `ethernet_gw` und `ethernet_mask` werden weiterhin ausgewertet. Wird `ethernet_ip` gesetzt, müssen auch Gateway und Netzmaske angegeben werden. Alternativ lässt sich `ethernet.manual_ip` beziehungsweise `wifi.manual_ip` direkt in der lokalen Gerätekonfiguration setzen.
-
-### Update von einer älteren Version
-
-1. Die Integration über HACS aktualisieren und Home Assistant neu starten. Die Integrationseinträge nicht löschen oder neu anlegen: ihre IDs verknüpfen den bestehenden privaten Speicher.
-2. Die Dashboard-Seite neu laden. Bestehende `device_id`-Karten erhalten das Dropdown automatisch; Entwürfe und Verläufe bleiben unter den bestehenden Speicherkennungen erhalten.
-3. Die neue Karte funktioniert mit der bisherigen Firmware: Die Druckaction und ihre Parameter bleiben unverändert. Für die Druckerauswahl ist kein ESP-Firmware-Update nötig.
-4. Ein Firmware-Update erst bei Bedarf durchführen, etwa zum Wechsel auf WLAN. Vorher die lokale YAML-Datei und Secrets sichern, eigene Pins und feste IP-Adressen übernehmen, die Konfiguration validieren und erst danach übertragen. Ohne `network_type` bleibt Ethernet die Vorgabe.
-
-HACS-Update und Firmware-Update sind getrennte Schritte. Die laufende ESP-Firmware wird durch das HACS-Update nicht verändert. Home Assistant und gegebenenfalls der ESP benötigen beim Update einen Neustart; eine vollständig unterbrechungsfreie Aktualisierung wird nicht zugesichert. Bei einer Rückkehr zu v0.5.0 bleiben die Speicherformate kompatibel. Die neuen WLAN-Packages sind erst ab v0.6.0 vorhanden.
-
-### Prüfungen
-
-`node tests/test_printers.js` und `node tests/test_models.js` prüfen beide Vorschauen, Druckerauswahl, getrennte Entwürfe und verspätete Antworten. `python tests/test_driver.py` kompiliert den echten C++-Treiber mit einer simulierten UART-Schnittstelle und prüft Druckbytes und Statusantworten (benötigt g++ oder `CXX`). `python tests/test_esphome.py` validiert beide Modelle und Netzwerkvarianten mit Dummy-Secrets und erzeugt deren C++-Quellen, einschliesslich älterer Ethernet-Konfigurationen und fester IP-Adressen. Die CI prüft ESPHome 2026.7.3 und 2026.8.2. Diese Prüfungen ersetzen keinen Drucktest an realer Hardware.
+`node tests/test_printers.js`, `node tests/test_models.js` und `python tests/test_upgrade.py` prüfen Vorschau, Druckerauswahl und Datenkompatibilität. `python tests/test_driver.py` testet den echten Treiber mit einer simulierten UART-Schnittstelle (g++ erforderlich). `python tests/test_esphome.py` validiert alle acht Modell-/Netzwerk-/Adresskombinationen, Hotspot/Webserver, ältere Konfigurationen und ungültige Einstellungen. Die CI prüft ESPHome 2026.7.3 und 2026.8.2 und kompiliert alle acht Varianten mit 2026.8.2. Dies ersetzt keinen Test an realer Hardware.
 
 ## Textgrenze
 
