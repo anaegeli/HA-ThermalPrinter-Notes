@@ -1,46 +1,24 @@
-################################################################################
-# ESPHome device template - Olimex ESP32-POE-ISO + Cashino EP-261C
-#
-# This is the only file an end user needs in /config/esphome. The complete
-# board configuration, printer configuration and C++ driver are loaded from:
-# https://github.com/anaegeli/HA-ThermalPrinter-Notes
-################################################################################
-
+# Device configuration: one ESP32 and one Cashino EP-261C printer.
+# Edit installation settings here. Shared hardware defaults live in
+# esphome/packages/defaults.yaml and may be overridden below when needed.
 substitutions:
+  # Choose exactly one: ethernet or wifi. Changing this requires new firmware.
+  network_type: ethernet
   device_name: thermal-printer
   friendly_name: Thermal Printer
-  project_name: anaegeli.thermal-printer-notes
-  project_version: "0.5.0"
 
-  # Secrets stay local. The remote packages never read secrets directly.
   api_encryption_key: !secret esphome_api_encryption_key
   ota_password: !secret esphome_ota
+  # Wi-Fi only: add wifi_ssid and wifi_password to your local secrets.yaml.
+  # Ethernet installations do not need Wi-Fi secrets.
 
-  # Olimex ESP32-POE-ISO (WROOM) hardware defaults.
-  esp32_board: esp32-poe-iso
-  esp32_variant: esp32
-  esp32_framework: esp-idf
-  ethernet_type: LAN8720
-  ethernet_mdc_pin: GPIO23
-  ethernet_mdio_pin: GPIO18
-  ethernet_clock_pin: GPIO17
-  ethernet_clock_mode: CLK_OUT
-  ethernet_phy_address: "0"
-  ethernet_power_pin: GPIO12
-  logger_level: INFO
-
-  # Cashino EP-261C TTL UART defaults.
+  # UART wiring for this installation (ESP TX -> printer RX and vice versa).
   printer_tx_pin: GPIO4
   printer_rx_pin: GPIO5
-  printer_baud_rate: "9600"
-  printer_rx_buffer_size: "256"
-  printer_feed_button_lines: "5"
 
-  # The external C++ component follows main and is refreshed once per hour.
-  thermal_printer_repository: https://github.com/anaegeli/HA-ThermalPrinter-Notes
-  thermal_printer_ref: main
-  thermal_printer_refresh: 1h
-
+# Packages and the external component follow main by default.
+# For a pinned installation, set both @main refs below and
+# substitutions.thermal_printer_ref to the same release tag.
 packages:
   olimex_esp32_poe_iso: github://anaegeli/HA-ThermalPrinter-Notes/esphome/packages/olimex-esp32-poe-iso.yaml@main
   cashino_ep_261c: github://anaegeli/HA-ThermalPrinter-Notes/esphome/packages/cashino-ep-261c.yaml@main

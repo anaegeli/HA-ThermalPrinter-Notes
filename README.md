@@ -4,6 +4,8 @@ Eine HACS-Custom-Integration mit einer eigenen Lovelace-Karte für private Markd
 
 ## Funktionen
 
+- Druckerauswahl direkt in der Karte; pro ESPHome-Gerät ein Druckerprofil
+- Ethernet oder WLAN über `network_type` oben in der Gerätekonfiguration
 - Persönlicher Entwurf mit automatischem Speichern 500 ms nach der letzten Änderung
 - Persönlicher Verlauf pro Benutzer **und pro Drucker**; Standardlimit 20, zentral einstellbar von 1 bis 200
 - **Speichern** legt eine Notiz ohne Druck im Verlauf ab; beim Drucken wird der Verlaufseintrag zuerst angelegt
@@ -23,6 +25,7 @@ Eine HACS-Custom-Integration mit einer eigenen Lovelace-Karte für private Markd
 ## Voraussetzungen
 
 - Home Assistant 2026.7 oder neuer
+- ESPHome 2026.7 oder neuer für neue Firmware-Builds
 - HACS
 - Ein ESPHome-Gerät mit der Remote-Konfiguration aus `esphome/thermal-printer.yaml`
 - Internetzugriff des ESPHome Device Builders beim Einlesen und Kompilieren, damit Packages und C++-Komponente aus GitHub geladen werden können
@@ -43,7 +46,7 @@ Für jeden weiteren physischen Drucker wird Thermal Printer Notes ein weiteres M
 
 Bei Dashboards im Speichermodus registriert die Integration die Karte automatisch. Im visuellen Dashboard-Editor muss nur Folgendes gewählt werden:
 
-1. **Drucker** – einer der mit Thermal Printer Notes eingerichteten Drucker
+1. **Startdrucker (optional)** – einer der mit Thermal Printer Notes eingerichteten Drucker
 2. **Dashboard-Layout** – 1, 2 oder 3 Spalten
 
 Die Karte übernimmt Druckername, Status-Entitäten, Verlaufslimit und Druckvorgaben automatisch. Die entsprechende YAML-Konfiguration ist bewusst kurz:
@@ -53,6 +56,12 @@ type: custom:thermal-printer-notes-card
 device_id: 0123456789abcdef0123456789abcdef
 columns: 2
 ```
+
+Über **Drucker** oben in der Karte lässt sich jederzeit ein anderes eingerichtetes Druckerprofil auswählen. Ein ESP mit einem Drucker entspricht einem Profil. Jeder ESP benötigt einen eigenen `device_name` und einen eigenen Thermal-Printer-Notes-Integrationseintrag in Home Assistant. Beide erscheinen dann im Dropdown.
+
+Beim Wechsel speichert die Karte zuerst den aktuellen Entwurf am bisherigen Drucker und lädt danach Entwurf, Verlauf, Status und Vorgaben des gewählten Druckers. Schlägt das Speichern fehl, bleibt die Auswahl beim bisherigen Drucker. Während laufender Aktionen ist die Auswahl gesperrt. Verspätete Antworten aus dem vorherigen Drucker- oder Benutzerkontext werden verworfen.
+
+`device_id` bleibt die Vorauswahl beim Öffnen der Karte. Bestehende Karten funktionieren unverändert; ohne `device_id` wird der erste verfügbare Drucker ausgewählt. Die Auswahl wird nur für die geöffnete Karte gehalten und ändert nicht deren Dashboard-Konfiguration. Ist ein ausdrücklich gewählter Drucker nicht verfügbar, wird kein anderer automatisch als Druckziel verwendet.
 
 Bei einem Dashboard im YAML-Modus muss zusätzlich diese Ressource eingetragen werden:
 
@@ -92,13 +101,16 @@ Text im Eingabefeld markieren und einen Knopf drücken. Die Karte setzt die zum 
 
 ## ESPHome-Installation
 
-Seit Version 0.5.0 besteht die ESPHome-Konfiguration aus einem kleinen Device-Template und zwei Remote-Packages:
+Seit Version 0.6.0 sind Geräteeinstellungen, gemeinsame Vorgaben und Netzwerkkonfiguration klar getrennt:
 
 ```text
 esphome/
 ├── thermal-printer.yaml
 ├── packages/
 │   ├── olimex-esp32-poe-iso.yaml
+│   ├── defaults.yaml
+│   ├── network-ethernet.yaml
+│   ├── network-wifi.yaml
 │   └── cashino-ep-261c.yaml
 └── components/
     └── thermal_printer/
@@ -106,14 +118,17 @@ esphome/
         └── thermal_printer.h
 ```
 
-Nur `esphome/thermal-printer.yaml` wird als lokale Gerätekonfiguration benötigt. Es lädt die beiden Packages über die ESPHome-Kurzform direkt aus `main`. Das Drucker-Package lädt wiederum den C++-Treiber als Git-basiertes `external_component`. Dadurch gehören YAML-Konfiguration und Treiber immer zum selben aktuellen Repository-Stand; das frühere manuelle Kopieren von `thermal_printer.h` entfällt.
+Nur `esphome/thermal-printer.yaml` wird als lokale Gerätekonfiguration benötigt. Es lädt die beiden Packages über die ESPHome-Kurzform direkt aus `main`. Das Drucker-Package lädt den C++-Treiber als Git-basiertes `external_component`. Das manuelle Kopieren von `thermal_printer.h` entfällt. Für reproduzierbare Builds müssen Packages und Treiber auf denselben Release-Tag gesetzt werden; `main` ist ein veränderlicher Entwicklungskanal.
 
-Das lokale Template enthält alle anlagenspezifischen Werte als Substitutionen: Gerätename, Projektangaben, API-/OTA-Secrets, ESP32-Board, Ethernet-Pins, UART-Pins, Baudrate, Puffergrösse sowie Repository-Ref und Aktualisierungsintervall. Die mitgelieferten Standardwerte entsprechen dem getesteten Olimex ESP32-POE-ISO WROOM und dem EP-261C an GPIO4/GPIO5 mit 9600 Baud.
+Das lokale Template enthält nur Netzwerkart, Gerätename, API-/OTA-Secrets und die konkrete UART-Verdrahtung. Alle gemeinsamen Standardwerte stehen einmal in `packages/defaults.yaml`. Die beiden bestehenden Package-Einstiegspunkte laden diese Vorgaben, damit auch ältere Minimal-Konfigurationen erhalten bleiben. Board-, Netzwerk- und Drucker-Packages verwenden die Substitutionen, ohne ihre Werte erneut zu definieren. Bewusste lokale Überschreibungen haben Vorrang.
+
+Die Vorgaben entsprechen dem Olimex ESP32-POE-ISO WROOM und dem EP-261C an GPIO4/GPIO5 mit 9600 Baud. Eine bestehende abweichende Verdrahtung muss in der lokalen Datei erhalten bleiben. Andere ESP32-Boards benötigen passende lokale `esp32_board`-/`esp32_variant`- und Pin-Überschreibungen; `network_type` allein ändert keine Hardwarebelegung.
 
 Minimaler Inhalt nach dem ESPHome-Dashboard-Import:
 
 ```yaml
 substitutions:
+  network_type: ethernet  # ethernet oder wifi
   device_name: thermal-printer
   friendly_name: Thermal Printer
   api_encryption_key: !secret esphome_api_encryption_key
@@ -125,6 +140,34 @@ packages:
 ```
 
 `main` ist bewusst der Standardkanal. ESPHome aktualisiert die externe C++-Komponente gemäss `thermal_printer_refresh` standardmässig stündlich; Remote-Packages werden von ESPHome ebenfalls zwischengespeichert und regelmässig aktualisiert. Wer eine unveränderliche Installation benötigt, kann die beiden `@main`-Angaben und `thermal_printer_ref` auf denselben Release-Tag setzen.
+
+### WLAN oder Ethernet
+
+`network_type: ethernet` lädt ausschliesslich das Ethernet-Package. `network_type: wifi` lädt ausschliesslich das WLAN-Package. Dies verwendet ESPHomes [dynamische Package-Dateinamen](https://esphome.io/components/packages/#including-packages-with-dynamic-filenames). Die Wahl erfolgt beim Erstellen der Firmware, nicht während des Betriebs.
+
+Bei WLAN werden zusätzlich diese Einträge im lokalen `secrets.yaml` benötigt:
+
+```yaml
+wifi_ssid: "Mein WLAN"
+wifi_password: "Mein WLAN-Passwort"
+```
+
+Die Secrets werden erst im gewählten WLAN-Package gelesen; Ethernet benötigt keine WLAN-Secrets. API-Verschlüsselung, OTA-Zugang und Druckaktionen bleiben in beiden Varianten gleich. Ohne manuelle IP-Konfiguration wird DHCP verwendet.
+
+Vorhandene Ethernet-Substitutionen `ethernet_ip`, `ethernet_gw` und `ethernet_mask` werden weiterhin ausgewertet. Wird `ethernet_ip` gesetzt, müssen auch Gateway und Netzmaske angegeben werden. Alternativ lässt sich `ethernet.manual_ip` beziehungsweise `wifi.manual_ip` direkt in der lokalen Gerätekonfiguration setzen.
+
+### Update von einer älteren Version
+
+1. Die Integration über HACS aktualisieren und Home Assistant neu starten. Die Integrationseinträge nicht löschen oder neu anlegen: ihre IDs verknüpfen den bestehenden privaten Speicher.
+2. Die Dashboard-Seite neu laden. Bestehende `device_id`-Karten erhalten das Dropdown automatisch; Entwürfe und Verläufe bleiben unter den bestehenden Speicherkennungen erhalten.
+3. Die neue Karte funktioniert mit der bisherigen Firmware: Die Druckaction und ihre Parameter bleiben unverändert. Für die Druckerauswahl ist kein ESP-Firmware-Update nötig.
+4. Ein Firmware-Update erst bei Bedarf durchführen, etwa zum Wechsel auf WLAN. Vorher die lokale YAML-Datei und Secrets sichern, eigene Pins und feste IP-Adressen übernehmen, die Konfiguration validieren und erst danach übertragen. Ohne `network_type` bleibt Ethernet die Vorgabe.
+
+HACS-Update und Firmware-Update sind getrennte Schritte. Die laufende ESP-Firmware wird durch das HACS-Update nicht verändert. Home Assistant und gegebenenfalls der ESP benötigen beim Update einen Neustart; eine vollständig unterbrechungsfreie Aktualisierung wird nicht zugesichert. Bei einer Rückkehr zu v0.5.0 bleiben die Speicherformate kompatibel. Die neuen WLAN-Packages sind erst ab v0.6.0 vorhanden.
+
+### Prüfungen
+
+`node tests/test_printers.js` prüft Vorschau, Druckerauswahl, getrennte Entwürfe und verspätete Antworten. `python tests/test_esphome.py` validiert beide Netzwerkvarianten mit Dummy-Secrets und erzeugt deren C++-Quellen, einschliesslich älterer Ethernet-Konfigurationen und fester IP-Adressen. Die CI prüft ESPHome 2026.7.3 und 2026.8.2. Diese Prüfungen ersetzen keinen Drucktest an realer Hardware.
 
 ## Textgrenze
 

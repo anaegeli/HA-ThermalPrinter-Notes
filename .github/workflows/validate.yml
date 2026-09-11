@@ -20,10 +20,26 @@ jobs:
         run: python -m compileall -q custom_components
       - name: Validate JavaScript syntax
         run: node --check custom_components/thermal_printer_notes/frontend/thermal-printer-notes-card.js
-      - name: Test EP-261C preview model
-        run: node tests/test_preview.js
+      - name: Test preview and printer selection
+        run: node tests/test_printers.js
+      - name: Test legacy and existing storage compatibility
+        run: python tests/test_upgrade.py
       - name: Validate JSON files
         run: python -c 'import json, pathlib; [json.loads(path.read_text()) for path in pathlib.Path(".").rglob("*.json")]'
+
+  esphome:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        version: ["2026.7.3", "2026.8.2"]
+    steps:
+      - uses: actions/checkout@v7.0.0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: pip install esphome==${{ matrix.version }}
+      - name: Validate and generate Ethernet and Wi-Fi firmware sources
+        run: python tests/test_esphome.py ${{ matrix.version == '2026.8.2' && '--compile' || '' }}
 
   hacs:
     runs-on: ubuntu-latest
