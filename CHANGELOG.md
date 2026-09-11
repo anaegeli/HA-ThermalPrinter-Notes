@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.1
+
+- Remove the redundant EP-382C device template and its redirect-only test. Both models use `thermal-printer.yaml`; select `printer_model: ep-382c` for the 80 mm printer.
+- Update the documentation and migration instructions. Older imports of the removed template at `@main` must switch to the shared template. Printer packages and historical releases remain available.
+
 ## 0.8.0
 
 - Use one complete `thermal-printer.yaml` with a grouped settings block for both printer models, board hardware, network, addresses, UART, API/OTA, hotspot and web interface.

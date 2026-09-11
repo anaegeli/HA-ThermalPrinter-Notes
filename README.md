@@ -137,7 +137,7 @@ Das allgemeine Template verwendet Ethernet, DHCP und GPIO4/5. Tatsächliche Verd
 - `cashino-common.yaml`: gemeinsamer UART, Druckaktionen, Tasten und Status-Entitäten.
 - `defaults.yaml`: kompatible Ersatzwerte für ältere Minimal-Konfigurationen. Die Angaben in der lokalen Basisdatei haben Vorrang.
 
-Die bisherige `thermal-printer-ep-382c.yaml` ist nur noch ein kleiner Kompatibilitätsverweis auf die gemeinsame Basis. Neue Installationen verwenden `thermal-printer.yaml`. Bestehende Package-URLs bleiben gültig; die lokale Header-Datei `thermal_printer.h` wird nicht mehr benötigt.
+Es gibt nur eine Gerätevorlage: `thermal-printer.yaml`. Für den EP-382C darin `printer_model: ep-382c` setzen. Der frühere separate Template-Einstieg wurde entfernt. Bestehende Drucker-Package-URLs bleiben gültig; die lokale Header-Datei `thermal_printer.h` wird nicht mehr benötigt.
 
 ### Update und Prüfung
 

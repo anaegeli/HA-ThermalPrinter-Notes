@@ -25,7 +25,7 @@ def local_template(source):
 
 
 def validate(network="ethernet", model="EP-261C", static=False, build=False,
-             legacy=False, features=False, invalid=None, alias=False):
+             legacy=False, features=False, invalid=None):
     with tempfile.TemporaryDirectory(prefix="thermal-printer-") as directory:
         work = Path(directory)
         shutil.copytree(ROOT / "esphome/packages", work / "packages")
@@ -58,11 +58,6 @@ def validate(network="ethernet", model="EP-261C", static=False, build=False,
         source = source.replace("printer_tx_pin: GPIO4", "printer_tx_pin: GPIO14").replace("printer_rx_pin: GPIO5", "printer_rx_pin: GPIO13")
         if invalid:
             source = source.replace(*invalid)
-        if alias:
-            (work / "thermal-printer.yaml").write_text(source, encoding="utf-8")
-            source = (ROOT / "esphome/thermal-printer-ep-382c.yaml").read_text(encoding="utf-8")
-            source = source.replace("github://anaegeli/HA-ThermalPrinter-Notes/esphome/thermal-printer.yaml@${thermal_printer_ref}", "!include thermal-printer.yaml")
-            model = "EP-382C"
         config_file = work / "device.yaml"
         config_file.write_text(source, encoding="utf-8")
         CORE.reset()
@@ -103,7 +98,7 @@ def validate(network="ethernet", model="EP-261C", static=False, build=False,
         assert f"set_ep_382c({'true' if model == 'EP-382C' else 'false'})" in generated
         if build:
             subprocess.run([sys.executable, "-m", "esphome", "compile", str(config_file)], check=True)
-        print(f"Validated {model}/{network}/{'static' if static else 'dhcp'}; legacy={legacy}; features={features}; alias={alias}")
+        print(f"Validated {model}/{network}/{'static' if static else 'dhcp'}; legacy={legacy}; features={features}")
 
 
 if __name__ == "__main__":
@@ -122,7 +117,6 @@ if __name__ == "__main__":
         validate("ethernet", features=True)  # web server works independently of Wi-Fi
         validate(legacy=True)
         validate(legacy=True, static=True)
-        validate(alias=True)
         validate(invalid=("ip_mode: dhcp", "ip_mode: typo"))
         validate(invalid=("ip_mode: dhcp", "ip_mode: static"))
         validate(invalid=("network_type: ethernet", "network_type: typo"))
