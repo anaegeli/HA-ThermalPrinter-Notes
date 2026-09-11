@@ -1,28 +1,81 @@
-# Device configuration: one ESP32 and one Cashino EP-261C printer.
-# Edit installation settings here. Shared hardware defaults live in
-# esphome/packages/defaults.yaml and may be overridden below when needed.
+# Thermal Printer: eine Basisdatei fuer beide Druckermodelle.
+# Alle Geraeteeinstellungen stehen hier. Anschliessend folgen nur die Imports.
+# WLAN-Zugangsdaten bleiben in secrets.yaml: wifi_ssid und wifi_password.
 substitutions:
-  # Choose exactly one: ethernet or wifi. Changing this requires new firmware.
-  network_type: ethernet
+  # 1. Geraet und Drucker
   device_name: thermal-printer
   friendly_name: Thermal Printer
+  printer_model: ep-261c  # ep-261c (58 mm) oder ep-382c (80 mm)
 
+  # 2. Netzwerk und Adressvergabe (fuer Ethernet UND WLAN)
+  network_type: ethernet  # ethernet oder wifi
+  ip_mode: dhcp           # dhcp oder static
+  # Nur bei static ausfuellen. Leere Werte verhindern versehentliche falsche IPs.
+  static_ip: ""
+  gateway: ""
+  subnet: "255.255.255.0"
+  dns1: "0.0.0.0"        # bei Bedarf eigenen DNS-Server eintragen
+  dns2: "0.0.0.0"
+  # Optional: bisherige IP/Hostname zum Uebertragen einer IP-Aenderung.
+  # Nach erfolgreichem Wechsel wieder leeren. Aendert nicht die Geraete-IP.
+  network_use_address: ""
+
+  # 3. WLAN-Fallback-Hotspot (nur bei network_type: wifi)
+  # Normales WLAN verwendet !secret wifi_ssid und !secret wifi_password.
+  wifi_ap_enabled: "false"  # true aktiviert auch das Captive Portal
+  wifi_ap_ssid: "${device_name}_FH"
+  # Bei aktivem Hotspot "" durch !secret wifi_hotspot_password ersetzen.
+  wifi_ap_password: ""  # mindestens 8 Zeichen; leer nur bei deaktiviertem AP
+
+  # 4. API und Firmware-Updates
   api_encryption_key: !secret esphome_api_encryption_key
   ota_password: !secret esphome_ota
-  # Wi-Fi only: add wifi_ssid and wifi_password to your local secrets.yaml.
-  # Ethernet installations do not need Wi-Fi secrets.
 
-  # UART wiring for this installation (ESP TX -> printer RX and vice versa).
+  # 5. Lokale Weboberflaeche und Protokollierung
+  web_server_enabled: "false"
+  web_server_port: "80"
+  web_server_version: "3"
+  web_server_local: "true"
+  web_server_include_internal: "true"
+  logger_level: INFO
+
+  # 6. ESP32-Board (Standard: Olimex ESP32-POE-ISO WROOM)
+  esp32_board: esp32-poe-iso
+  esp32_variant: esp32
+  esp32_framework: esp-idf
+
+  # 7. Ethernet-Hardware (nur bei network_type: ethernet)
+  ethernet_type: LAN8720
+  ethernet_mdc_pin: GPIO23
+  ethernet_mdio_pin: GPIO18
+  ethernet_clock_pin: GPIO17
+  ethernet_clock_mode: CLK_OUT
+  ethernet_phy_address: "0"
+  ethernet_power_pin: GPIO12
+
+  # 8. Drucker-UART: ESP TX -> Drucker RX, ESP RX <- Drucker TX
+  # Die tatsaechliche Verdrahtung eintragen; keine Pins blind uebernehmen.
   printer_tx_pin: GPIO4
   printer_rx_pin: GPIO5
+  printer_baud_rate: "9600"  # muss zur Selbsttestseite passen
+  printer_rx_buffer_size: "256"
+  printer_feed_button_lines: "5"
 
-# Packages and the external component follow main by default.
-# For a pinned installation, set both @main refs below and
-# substitutions.thermal_printer_ref to the same release tag.
+  # 9. Gemeinsamer Softwarestand fuer Packages UND C++-Treiber
+  thermal_printer_repository: https://github.com/anaegeli/HA-ThermalPrinter-Notes
+  thermal_printer_ref: main  # alternativ ein Release-Tag, z.B. v0.8.0
+  thermal_printer_refresh: 1h
+
+# Ab hier sind fuer die Einrichtung keine Aenderungen erforderlich.
 packages:
-  olimex_esp32_poe_iso: github://anaegeli/HA-ThermalPrinter-Notes/esphome/packages/olimex-esp32-poe-iso.yaml@main
-  cashino_ep_261c: github://anaegeli/HA-ThermalPrinter-Notes/esphome/packages/cashino-ep-261c.yaml@main
+  thermal_printer:
+    url: ${thermal_printer_repository}
+    ref: ${thermal_printer_ref}
+    refresh: ${thermal_printer_refresh}
+    files:
+      - esphome/packages/olimex-esp32-poe-iso.yaml
+      - esphome/packages/cashino-${printer_model}.yaml
 
 dashboard_import:
   package_import_url: github://anaegeli/HA-ThermalPrinter-Notes/esphome/thermal-printer.yaml@main
-  import_full_config: false
+  import_full_config: true

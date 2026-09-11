@@ -156,8 +156,9 @@ const defaultsSource = fs.readFileSync("esphome/packages/defaults.yaml", "utf8")
 const printerPackageSource = fs.readFileSync("esphome/packages/cashino-common.yaml", "utf8");
 const componentSource = fs.readFileSync("esphome/components/thermal_printer/__init__.py", "utf8");
 const driverSource = fs.readFileSync("esphome/components/thermal_printer/thermal_printer.h", "utf8");
-assert.match(deviceTemplateSource, /github:\/\/anaegeli\/HA-ThermalPrinter-Notes\/esphome\/packages\/olimex-esp32-poe-iso\.yaml@main/, "device template loads the board package from main");
-assert.match(deviceTemplateSource, /github:\/\/anaegeli\/HA-ThermalPrinter-Notes\/esphome\/packages\/cashino-ep-261c\.yaml@main/, "device template loads the printer package from main");
+assert.match(deviceTemplateSource, /esphome\/packages\/olimex-esp32-poe-iso\.yaml/, "device template loads the board package");
+assert.match(deviceTemplateSource, /cashino-\$\{printer_model\}\.yaml/, "device template selects the printer package");
+assert.match(deviceTemplateSource, /ref: \$\{thermal_printer_ref\}/, "packages use the same ref as the driver");
 assert.match(deviceTemplateSource, /api_encryption_key: !secret esphome_api_encryption_key/, "API secret stays local in the device template");
 assert.match(deviceTemplateSource, /printer_tx_pin: GPIO4/, "printer TX is an overridable substitution");
 assert.match(deviceTemplateSource, /printer_rx_pin: GPIO5/, "printer RX is an overridable substitution");

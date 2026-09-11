@@ -5,6 +5,13 @@
 packages:
   defaults: !include defaults.yaml
   network: !include network-${network_type}.yaml
+  # Lookup rejects misspelled modes instead of silently switching to DHCP.
+  addressing: >-
+    ${ {"dhcp": {}, "static": {network_type: {"manual_ip": {"static_ip": static_ip, "gateway": gateway, "subnet": subnet, "dns1": dns1, "dns2": dns2}}}}[ip_mode] }
+  upload_address: >-
+    ${ {network_type: {"use_address": network_use_address}} if network_use_address else {} }
+  web_interface: >-
+    ${ {"false": {}, "true": {"web_server": {"port": web_server_port, "version": web_server_version, "local": web_server_local, "include_internal": web_server_include_internal}}}[web_server_enabled] }
 
 esphome:
   min_version: 2026.7.0

@@ -1,3 +1,10 @@
+# Wi-Fi secrets are loaded only when this network is selected.
+packages:
+  # A missing password deliberately fails ESPHome's WPA minimum length check;
+  # an empty string would otherwise silently create an unprotected hotspot.
+  fallback_hotspot: >-
+    ${ {"wifi": {"ap": {"ssid": wifi_ap_ssid, "password": wifi_ap_password or "!"}}, "captive_portal": {}} if {"true": true, "false": false}[wifi_ap_enabled] else {} }
+
 # Read the installation's secrets only when Wi-Fi is selected.
 wifi:
   ssid: !secret wifi_ssid
