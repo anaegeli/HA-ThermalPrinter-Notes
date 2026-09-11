@@ -6,9 +6,13 @@ from typing import Final
 
 DOMAIN: Final = "thermal_printer_notes"
 NAME: Final = "Thermal Printer Notes"
-VERSION: Final = "0.6.0"
+VERSION: Final = "0.7.0"
 
 CONF_SOURCE_DEVICE_ID: Final = "source_device_id"
+CONF_PRINTER_MODEL: Final = "printer_model"
+DEFAULT_PRINTER_MODEL: Final = "EP-261C"
+PRINTER_MODELS: Final = ("EP-261C", "EP-382C")
+
 CONF_PRINT_ACTION: Final = "print_action"
 CONF_HISTORY_LIMIT: Final = "history_limit"
 CONF_COPIES: Final = "copies"
@@ -47,9 +51,34 @@ def source_device_id(entry) -> str:
     return str(value or "")
 
 
+def printer_model(entry) -> str:
+    """Keep existing entries on the 58 mm profile without rewriting storage."""
+    model = entry.options.get(CONF_PRINTER_MODEL, entry.data.get(CONF_PRINTER_MODEL))
+    return model if model in PRINTER_MODELS else DEFAULT_PRINTER_MODEL
+
+
+def preview_profile(entry) -> dict[str, object]:
+    """Geometry from the Cashino manuals; paper width differs from print width."""
+    model = printer_model(entry)
+    wide = model == "EP-382C"
+    return {
+        "model": model,
+        "paper_width_mm": 80 if wide else 58,
+        "dots": 576 if wide else 384,
+        "normal_columns": 48 if wide else 32,
+        "small_columns": 64 if wide else 42,
+        "normal_glyph_height": 24,
+        "small_glyph_height": 17,
+        "normal_line_height": 30,
+        "small_line_height": 23,
+        "double_line_height": 54,
+    }
+
+
 def entry_settings(entry) -> dict[str, object]:
     """Return normalized central settings for a config entry."""
     return {
+        CONF_PRINTER_MODEL: printer_model(entry),
         CONF_PRINT_ACTION: entry.options.get(
             CONF_PRINT_ACTION,
             entry.data.get(CONF_PRINT_ACTION, DEFAULT_PRINT_ACTION),

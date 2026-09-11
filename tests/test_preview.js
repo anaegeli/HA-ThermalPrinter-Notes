@@ -153,7 +153,7 @@ assert.ok(chunks.every((chunk) => chunk.height <= 8000), "canvas chunks stay bel
 const deviceTemplateSource = fs.readFileSync("esphome/thermal-printer.yaml", "utf8");
 const boardPackageSource = fs.readFileSync("esphome/packages/olimex-esp32-poe-iso.yaml", "utf8");
 const defaultsSource = fs.readFileSync("esphome/packages/defaults.yaml", "utf8");
-const printerPackageSource = fs.readFileSync("esphome/packages/cashino-ep-261c.yaml", "utf8");
+const printerPackageSource = fs.readFileSync("esphome/packages/cashino-common.yaml", "utf8");
 const componentSource = fs.readFileSync("esphome/components/thermal_printer/__init__.py", "utf8");
 const driverSource = fs.readFileSync("esphome/components/thermal_printer/thermal_printer.h", "utf8");
 assert.match(deviceTemplateSource, /github:\/\/anaegeli\/HA-ThermalPrinter-Notes\/esphome\/packages\/olimex-esp32-poe-iso\.yaml@main/, "device template loads the board package from main");
@@ -172,7 +172,7 @@ assert.match(componentSource, /uart\.register_uart_device/, "external component 
 assert.match(driverSource, /public Component, public uart::UARTDevice/, "driver is a native ESPHome component");
 assert.match(driverSource, /void setup\(\) override \{ begin\(\); \}/, "ESPHome initializes the driver automatically");
 assert.match(driverSource, /options\.size == 3 \? 1 : 0/, "driver mode 3 selects Font B");
-assert.match(driverSource, /options\.size == 3\) return TP_SMALL_COLUMNS/, "driver mode 3 wraps at 42 columns");
+assert.match(driverSource, /options\.size == 3\) return small_columns\(\)/, "driver mode 3 uses model-specific Font B width");
 assert.match(driverSource, /character\.wide && base_size == 0 \? 2 : 1/, "driver counts inline-wide characters as two columns");
 assert.match(driverSource, /chars\[i\]\.wide && base_size == 0 \? 1 : base_size/, "driver toggles ESC/POS double width per marked run");
 assert.match(driverSource, /if \(size == 1\) return 0x10/, "driver maps inline width to GS ! double-width");

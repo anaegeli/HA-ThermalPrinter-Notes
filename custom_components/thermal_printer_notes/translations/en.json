@@ -12,7 +12,8 @@
           "copies": "Number of copies",
           "feed_lines": "Feed lines",
           "reverse_print": "Print in reverse",
-          "cut": "Cut after printing"
+          "cut": "Cut after printing",
+          "printer_model": "Printer model"
         },
         "data_description": {
           "source_device_id": "The ESPHome device that owns the status, ready, queue, and print action.",
@@ -21,7 +22,8 @@
           "copies": "Used for every job on this printer.",
           "feed_lines": "Paper feed lines before cutting.",
           "reverse_print": "Uses the ESPHome driver's reverse print direction.",
-          "cut": "Runs the cutter after the print."
+          "cut": "Runs the cutter after the print.",
+          "printer_model": "EP-261C: 58 mm; EP-382C: 80 mm. Must match the ESPHome printer package."
         }
       }
     },
@@ -44,7 +46,11 @@
           "copies": "Number of copies",
           "feed_lines": "Feed lines",
           "reverse_print": "Print in reverse",
-          "cut": "Cut after printing"
+          "cut": "Cut after printing",
+          "printer_model": "Printer model"
+        },
+        "data_description": {
+          "printer_model": "EP-261C: 58 mm; EP-382C: 80 mm. Must match the ESPHome printer package."
         }
       }
     },

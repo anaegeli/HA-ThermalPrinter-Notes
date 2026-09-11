@@ -5,7 +5,7 @@ substitutions:
   friendly_name: Thermal Printer
   network_type: ethernet
   project_name: anaegeli.thermal-printer-notes
-  project_version: "0.6.0"
+  project_version: "0.7.0"
   esp32_board: esp32-poe-iso
   esp32_variant: esp32
   esp32_framework: esp-idf

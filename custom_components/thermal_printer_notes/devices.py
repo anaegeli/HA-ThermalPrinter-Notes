@@ -9,7 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.util import slugify
 
-from .const import DOMAIN, VERSION, source_device_id
+from .const import DOMAIN, VERSION, printer_model, source_device_id
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,7 +129,7 @@ def register_printer_device(hass: HomeAssistant, entry: ConfigEntry):
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, entry.entry_id)},
         manufacturer="Cashino",
-        model="EP-261C",
+        model=printer_model(entry),
         name=name,
         sw_version=VERSION,
     )

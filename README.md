@@ -1,6 +1,6 @@
 # Thermal Printer Notes for Home Assistant
 
-Eine HACS-Custom-Integration mit einer eigenen Lovelace-Karte für private Markdown-Notizen auf einem ESPHome-/Cashino-EP-261C-Thermodrucker. Jeder angemeldete Home-Assistant-Benutzer sieht ausschliesslich den eigenen Entwurf, die eigene Vorschau und den eigenen Verlauf. Mehrere Drucker werden als getrennte Integrationseinträge verwaltet.
+Eine HACS-Custom-Integration mit einer eigenen Lovelace-Karte für private Markdown-Notizen auf einem ESPHome-/Cashino-Thermodrucker (EP-261C oder EP-382C). Jeder angemeldete Home-Assistant-Benutzer sieht ausschliesslich den eigenen Entwurf, die eigene Vorschau und den eigenen Verlauf. Mehrere Drucker werden als getrennte Integrationseinträge verwaltet.
 
 ## Funktionen
 
@@ -10,8 +10,8 @@ Eine HACS-Custom-Integration mit einer eigenen Lovelace-Karte für private Markd
 - Persönlicher Verlauf pro Benutzer **und pro Drucker**; Standardlimit 20, zentral einstellbar von 1 bis 200
 - **Speichern** legt eine Notiz ohne Druck im Verlauf ab; beim Drucken wird der Verlaufseintrag zuerst angelegt
 - Markdown-Werkzeugleiste für Überschriften, Fett, Unterstreichen, Inline-Breite, Listen, Checklisten, Links, Trennlinien und QR-Codes
-- EP-261C-Vorschau mit 384 Druckpunkten, 32 Zeichen in Font A, 42 Zeichen im kleinen Kopf sowie den Umbruch- und Zeilenabstandsregeln des Treibers
-- Drei globale Schriftgrössen: klein (Font B, 42 Zeichen), normal und doppelte Grösse
+- Modellabhängige Vorschau: EP-261C mit 384 Punkten und 32/42 Zeichen; EP-382C mit 576 Punkten und 48/64 Zeichen
+- Drei globale Schriftgrössen: klein (Font B, 42 bzw. 64 Zeichen), normal und doppelte Grösse
 - Doppelte Breite gezielt für markierte Wörter oder Zeilen mit `==breit==`; gemischter Umbruch nach echten Druckspalten
 - Zuverlässige Breitenwechsel innerhalb einer Zeile über den im EP-261C-Handbuch dokumentierten Grössenbefehl `GS !`
 - Deutsch/Englisch lokalisierte Dashboard-Karte mit zentral gepflegten Übersetzungstexten
@@ -38,7 +38,7 @@ Eine HACS-Custom-Integration mit einer eigenen Lovelace-Karte für private Markd
 4. **Thermal Printer Notes** installieren beziehungsweise aktualisieren.
 5. Home Assistant neu starten.
 6. Unter **Einstellungen → Geräte & Dienste → Integration hinzufügen** nach **Thermal Printer Notes** suchen.
-7. Das ESPHome-Druckergerät auswählen und die zentralen Vorgaben bestätigen.
+7. Das ESPHome-Druckergerät und das passende Druckermodell auswählen, dann die zentralen Vorgaben bestätigen.
 
 Für jeden weiteren physischen Drucker wird Thermal Printer Notes ein weiteres Mal hinzugefügt. Die Integration erzeugt je Eintrag ein eigenes auswählbares Druckergerät für den Dashboard-Editor. Die ESPHome-Druckaktion wird anhand des ausgewählten Geräts vorgeschlagen; bei abweichender Benennung kann sie manuell angepasst werden.
 
@@ -82,9 +82,9 @@ Status/Bereit/Warteschlange stehen kompakt über dem Arbeitsbereich. Die zentral
 
 ## Druckvorschau
 
-Die Vorschau simuliert die vom mitgelieferten ESPHome-Treiber erzeugten Zeilen und nicht das HTML-Aussehen eines Browsers. Sie berücksichtigt den kleinen Benutzer-/Zeitkopf, die effektive Druckbreite von 384 Punkten, Font A/B, Überschriften, globale Schriftgrösse, Ausrichtung, Listen, Inline-Stile sowie gemischte normale und doppelt breite Zeichen beim Zeilenumbruch.
+Die Vorschau simuliert die vom mitgelieferten ESPHome-Treiber erzeugten Zeilen und nicht das HTML-Aussehen eines Browsers. Sie berücksichtigt den kleinen Benutzer-/Zeitkopf, die effektive Druckbreite von 384 beziehungsweise 576 Punkten, Font A/B, Überschriften, globale Schriftgrösse, Ausrichtung, Listen, Inline-Stile sowie gemischte normale und doppelt breite Zeichen beim Zeilenumbruch.
 
-Die Form einzelner Buchstaben kann leicht vom Druck abweichen, da der EP-261C seine interne Bitmap-Schrift verwendet und der Browser eine Monospace-Schrift zeichnet. Zeilenlänge, Position und Grössenverhältnis sind jedoch am Druckerraster ausgerichtet. QR-Codes erscheinen als grössenrichtiger Platzhalter.
+Die Form einzelner Buchstaben kann leicht vom Druck abweichen, da der Drucker seine interne Bitmap-Schrift verwendet und der Browser eine Monospace-Schrift zeichnet. Zeilenlänge, Position und Grössenverhältnis sind jedoch am Druckerraster ausgerichtet. QR-Codes erscheinen als grössenrichtiger Platzhalter.
 
 ## Markdown-Werkzeuge
 
@@ -99,6 +99,17 @@ Text im Eingabefeld markieren und einen Knopf drücken. Die Karte setzt die zum 
 - `---` für eine Trennlinie
 - `QR: https://example.org` für einen QR-Code
 
+## Unterstützte Druckermodelle
+
+| Modell | Papierbreite | Druckpunkte | Normal / klein | ESPHome-Template |
+|---|---|---|---|---|
+| Cashino EP-261C | 58 mm | 384 | 32 / 42 Zeichen | [thermal-printer.yaml](esphome/thermal-printer.yaml) |
+| Cashino EP-382C | 80 mm | 576 | 48 / 64 Zeichen | [thermal-printer-ep-382c.yaml](esphome/thermal-printer-ep-382c.yaml) |
+
+Die Auswahl **Druckermodell** in Home Assistant muss zum ESPHome-Package des Geräts passen. Sie lässt sich später über die Integrationsoptionen ändern. Bestehende Einträge ohne Modellangabe verwenden weiterhin EP-261C. Entwürfe und Verläufe bleiben erhalten.
+
+Für den neuen 80-mm-Drucker gibt es eine [deutsche EP-382C-Anleitung](docs/ep-382c.md) mit Stromversorgung, Pinbelegung, Selbsttest und vollständiger Konfiguration. Die folgenden allgemeinen ESPHome-Beispiele zeigen weiterhin das EP-261C-Template; für den EP-382C das eigene Template verwenden. Beide Modelle unterstützen Ethernet und WLAN. Die Unterstützung basiert auf dem Handbuch und Softwareprüfungen; der physische EP-382C-Drucktest steht noch aus.
+
 ## ESPHome-Installation
 
 Seit Version 0.6.0 sind Geräteeinstellungen, gemeinsame Vorgaben und Netzwerkkonfiguration klar getrennt:
@@ -106,23 +117,26 @@ Seit Version 0.6.0 sind Geräteeinstellungen, gemeinsame Vorgaben und Netzwerkko
 ```text
 esphome/
 ├── thermal-printer.yaml
+├── thermal-printer-ep-382c.yaml
 ├── packages/
 │   ├── olimex-esp32-poe-iso.yaml
 │   ├── defaults.yaml
 │   ├── network-ethernet.yaml
 │   ├── network-wifi.yaml
-│   └── cashino-ep-261c.yaml
+│   ├── cashino-common.yaml
+│   ├── cashino-ep-261c.yaml
+│   └── cashino-ep-382c.yaml
 └── components/
     └── thermal_printer/
         ├── __init__.py
         └── thermal_printer.h
 ```
 
-Nur `esphome/thermal-printer.yaml` wird als lokale Gerätekonfiguration benötigt. Es lädt die beiden Packages über die ESPHome-Kurzform direkt aus `main`. Das Drucker-Package lädt den C++-Treiber als Git-basiertes `external_component`. Das manuelle Kopieren von `thermal_printer.h` entfällt. Für reproduzierbare Builds müssen Packages und Treiber auf denselben Release-Tag gesetzt werden; `main` ist ein veränderlicher Entwicklungskanal.
+Nur das zum Modell passende ESPHome-Template wird als lokale Gerätekonfiguration benötigt. Es lädt die beiden Packages über die ESPHome-Kurzform direkt aus `main`. Das Drucker-Package lädt den C++-Treiber als Git-basiertes `external_component`. Das manuelle Kopieren von `thermal_printer.h` entfällt. Für reproduzierbare Builds müssen Packages und Treiber auf denselben Release-Tag gesetzt werden; `main` ist ein veränderlicher Entwicklungskanal.
 
 Das lokale Template enthält nur Netzwerkart, Gerätename, API-/OTA-Secrets und die konkrete UART-Verdrahtung. Alle gemeinsamen Standardwerte stehen einmal in `packages/defaults.yaml`. Die beiden bestehenden Package-Einstiegspunkte laden diese Vorgaben, damit auch ältere Minimal-Konfigurationen erhalten bleiben. Board-, Netzwerk- und Drucker-Packages verwenden die Substitutionen, ohne ihre Werte erneut zu definieren. Bewusste lokale Überschreibungen haben Vorrang.
 
-Die Vorgaben entsprechen dem Olimex ESP32-POE-ISO WROOM und dem EP-261C an GPIO4/GPIO5 mit 9600 Baud. Eine bestehende abweichende Verdrahtung muss in der lokalen Datei erhalten bleiben. Andere ESP32-Boards benötigen passende lokale `esp32_board`-/`esp32_variant`- und Pin-Überschreibungen; `network_type` allein ändert keine Hardwarebelegung.
+Die Vorgaben des bisherigen Templates entsprechen dem Olimex ESP32-POE-ISO WROOM und dem EP-261C an GPIO4/GPIO5 mit 9600 Baud. Eine bestehende abweichende Verdrahtung muss in der lokalen Datei erhalten bleiben. Andere ESP32-Boards benötigen passende lokale `esp32_board`-/`esp32_variant`- und Pin-Überschreibungen; `network_type` allein ändert keine Hardwarebelegung.
 
 Minimaler Inhalt nach dem ESPHome-Dashboard-Import:
 
@@ -167,7 +181,7 @@ HACS-Update und Firmware-Update sind getrennte Schritte. Die laufende ESP-Firmwa
 
 ### Prüfungen
 
-`node tests/test_printers.js` prüft Vorschau, Druckerauswahl, getrennte Entwürfe und verspätete Antworten. `python tests/test_esphome.py` validiert beide Netzwerkvarianten mit Dummy-Secrets und erzeugt deren C++-Quellen, einschliesslich älterer Ethernet-Konfigurationen und fester IP-Adressen. Die CI prüft ESPHome 2026.7.3 und 2026.8.2. Diese Prüfungen ersetzen keinen Drucktest an realer Hardware.
+`node tests/test_printers.js` und `node tests/test_models.js` prüfen beide Vorschauen, Druckerauswahl, getrennte Entwürfe und verspätete Antworten. `python tests/test_driver.py` kompiliert den echten C++-Treiber mit einer simulierten UART-Schnittstelle und prüft Druckbytes und Statusantworten (benötigt g++ oder `CXX`). `python tests/test_esphome.py` validiert beide Modelle und Netzwerkvarianten mit Dummy-Secrets und erzeugt deren C++-Quellen, einschliesslich älterer Ethernet-Konfigurationen und fester IP-Adressen. Die CI prüft ESPHome 2026.7.3 und 2026.8.2. Diese Prüfungen ersetzen keinen Drucktest an realer Hardware.
 
 ## Textgrenze
 
@@ -197,7 +211,7 @@ reverse_print: false
 cut: true
 ```
 
-`alignment` kann `left`, `center` oder `right` sein. Für neue Entwürfe kann `size` `small`, `normal` oder `double_size` sein. `small` verwendet den nativen EP-261C-Font B mit 9 × 17 Druckpunkten und 42 Zeichen pro Zeile. Der frühere Wert `double_width` bleibt ausschliesslich für bestehende Entwürfe und Verlaufseinträge kompatibel; neue Inhalte verwenden stattdessen `==breit==` gezielt im Markdown.
+`alignment` kann `left`, `center` oder `right` sein. Für neue Entwürfe kann `size` `small`, `normal` oder `double_size` sein. `small` verwendet den nativen Font B mit 9 × 17 Druckpunkten und 42 Zeichen (EP-261C) beziehungsweise 64 Zeichen (EP-382C) pro Zeile. Der frühere Wert `double_width` bleibt ausschliesslich für bestehende Entwürfe und Verlaufseinträge kompatibel; neue Inhalte verwenden stattdessen `==breit==` gezielt im Markdown.
 
 ## Lizenz und Danksagung
 

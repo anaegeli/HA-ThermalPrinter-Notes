@@ -15,6 +15,8 @@ from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
+    SelectSelector,
+    SelectSelectorConfig,
     TextSelector,
     TextSelectorConfig,
 )
@@ -26,6 +28,7 @@ from .const import (
     CONF_FEED_LINES,
     CONF_HISTORY_LIMIT,
     CONF_PRINT_ACTION,
+    CONF_PRINTER_MODEL,
     CONF_REVERSE_PRINT,
     CONF_SOURCE_DEVICE_ID,
     DEFAULT_COPIES,
@@ -33,10 +36,12 @@ from .const import (
     DEFAULT_FEED_LINES,
     DEFAULT_HISTORY_LIMIT,
     DEFAULT_PRINT_ACTION,
+    DEFAULT_PRINTER_MODEL,
     DEFAULT_REVERSE_PRINT,
     DOMAIN,
     MAX_HISTORY_LIMIT,
     MIN_HISTORY_LIMIT,
+    PRINTER_MODELS,
     entry_settings,
     source_device_id,
 )
@@ -60,6 +65,10 @@ def _schema(defaults: dict[str, Any]) -> vol.Schema:
                     filter=DeviceFilterSelectorConfig(integration="esphome")
                 )
             ),
+            vol.Required(
+                CONF_PRINTER_MODEL,
+                default=defaults.get(CONF_PRINTER_MODEL, DEFAULT_PRINTER_MODEL),
+            ): SelectSelector(SelectSelectorConfig(options=list(PRINTER_MODELS))),
             vol.Required(
                 CONF_PRINT_ACTION,
                 default=defaults.get(CONF_PRINT_ACTION, DEFAULT_PRINT_ACTION),
@@ -107,6 +116,9 @@ def _normalize(user_input: dict[str, Any]) -> dict[str, Any]:
     """Normalize selector values before storing them."""
     return {
         CONF_SOURCE_DEVICE_ID: str(user_input[CONF_SOURCE_DEVICE_ID]),
+        CONF_PRINTER_MODEL: vol.In(PRINTER_MODELS)(
+            user_input.get(CONF_PRINTER_MODEL, DEFAULT_PRINTER_MODEL)
+        ),
         CONF_PRINT_ACTION: str(user_input[CONF_PRINT_ACTION]).strip(),
         CONF_HISTORY_LIMIT: int(user_input[CONF_HISTORY_LIMIT]),
         CONF_COPIES: int(user_input[CONF_COPIES]),

@@ -6,6 +6,7 @@ const deferred = () => {
   return { promise, resolve, reject };
 };
 const state = (id) => ({ printer: { device_id: id, name: id }, draft: { markdown: `draft-${id}` },
+  preview_profile: { model: id === "B" ? "EP-382C" : "EP-261C" },
   history: [{ id: `history-${id}` }], settings: { copies: id === "A" ? 1 : 2 } });
 const printers = [{ device_id: "A", name: "Office" }, { device_id: "B", name: "Kitchen" }];
 function cardWith(send, configured = "A") {
@@ -38,6 +39,7 @@ async function run() {
   assert.equal(card._draft.markdown, "draft-B");
   assert.equal(card._history[0].id, "history-B");
   assert.equal(card._settings.copies, 2);
+  assert.equal(card._profile().dots, 576, "switching to the 80 mm printer changes preview geometry");
   assert.equal(card._config.device_id, "A", "runtime choice does not rewrite dashboard default");
   await card._print();
   assert.ok(calls.some((msg) => msg.type === "thermal_printer_notes/print" && msg.device_id === "B"));
@@ -58,6 +60,7 @@ async function run() {
   slow.resolve(state("A"));
   await firstLoad;
   assert.equal(stale._draft.markdown, "draft-B", "late response cannot replace new printer's draft");
+  assert.equal(stale._profile().dots, 576, "late 58 mm state cannot replace the 80 mm geometry");
 
   const blocked = deferred();
   const queuedCalls = [];
