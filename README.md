@@ -4,7 +4,7 @@ Eine HACS-Custom-Integration mit einer eigenen Lovelace-Karte für private Markd
 
 ## Funktionen
 
-- Druckerauswahl direkt in der Karte; pro ESPHome-Gerät ein Druckerprofil
+- Druckerauswahl direkt in der Karte; pro ESPHome-Gerät ein Druckerprofil und pro Benutzer der zuletzt verwendete Drucker
 - Ethernet oder WLAN über `network_type` oben in der Gerätekonfiguration
 - Frei wählbare WLAN-Secret-Namen, ESP32-Neustart-Knopf und Diagnose für ESPHome-Version und WLAN-Signal
 - Persönlicher Entwurf mit automatischem Speichern 500 ms nach der letzten Änderung
@@ -62,7 +62,7 @@ columns: 2
 
 Beim Wechsel speichert die Karte zuerst den aktuellen Entwurf am bisherigen Drucker und lädt danach Entwurf, Verlauf, Status und Vorgaben des gewählten Druckers. Schlägt das Speichern fehl, bleibt die Auswahl beim bisherigen Drucker. Während laufender Aktionen ist die Auswahl gesperrt. Verspätete Antworten aus dem vorherigen Drucker- oder Benutzerkontext werden verworfen.
 
-`device_id` bleibt die Vorauswahl beim Öffnen der Karte. Bestehende Karten funktionieren unverändert; ohne `device_id` wird der erste verfügbare Drucker ausgewählt. Die Auswahl wird nur für die geöffnete Karte gehalten und ändert nicht deren Dashboard-Konfiguration. Ist ein ausdrücklich gewählter Drucker nicht verfügbar, wird kein anderer automatisch als Druckziel verwendet.
+`device_id` bleibt der Rückfallwert für Benutzer ohne persönliche Auswahl. Sobald ein Benutzer im Dropdown einen anderen Drucker wählt, wird diese Auswahl serverseitig unter seiner Home-Assistant-Benutzer-ID gespeichert und beim nächsten Öffnen auf jedem Browser wiederhergestellt. Andere Benutzer derselben Karte behalten ihre eigene Auswahl. Ist der persönlich gespeicherte Drucker nicht mehr vorhanden, verwendet die Karte wieder den konfigurierten Startdrucker beziehungsweise den ersten verfügbaren Drucker. Ein ausdrücklich konfigurierter, aber nicht verfügbarer Startdrucker wird weiterhin nicht stillschweigend durch ein anderes Druckziel ersetzt.
 
 Bei einem Dashboard im YAML-Modus muss zusätzlich diese Ressource eingetragen werden:
 

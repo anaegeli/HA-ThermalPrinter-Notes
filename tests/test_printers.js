@@ -41,6 +41,8 @@ async function run() {
   assert.equal(card._settings.copies, 2);
   assert.equal(card._profile().dots, 576, "switching to the 80 mm printer changes preview geometry");
   assert.equal(card._config.device_id, "A", "runtime choice does not rewrite dashboard default");
+  assert.ok(calls.some((msg) => msg.type.endsWith("select_printer") && msg.device_id === "B"),
+    "successful switch persists the authenticated user's selection");
   await card._print();
   assert.ok(calls.some((msg) => msg.type === "thermal_printer_notes/print" && msg.device_id === "B"));
 
@@ -77,6 +79,19 @@ async function run() {
   const auto = cardWith(async (msg) => msg.type.endsWith("list_printers") ? { printers } : state(msg.device_id), "");
   await auto._loadState();
   assert.equal(auto._selectedDeviceId, "A", "optional default selects first printer");
+
+  const remembered = cardWith(async (msg) => msg.type.endsWith("list_printers")
+    ? { printers, last_used_device_id: "B" } : state(msg.device_id), "A");
+  await remembered._loadState();
+  assert.equal(remembered._selectedDeviceId, "B",
+    "personal last-used printer overrides the shared card fallback");
+  assert.equal(remembered._draft.markdown, "draft-B");
+
+  const removed = cardWith(async (msg) => msg.type.endsWith("list_printers")
+    ? { printers, last_used_device_id: "removed" } : state(msg.device_id), "A");
+  await removed._loadState();
+  assert.equal(removed._selectedDeviceId, "A",
+    "an unavailable remembered printer falls back safely to the configured default");
   console.log("Printer selection and asynchronous isolation checks passed");
 }
 run().catch((err) => { console.error(err); process.exitCode = 1; });

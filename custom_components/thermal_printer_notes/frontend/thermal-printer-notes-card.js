@@ -170,6 +170,7 @@ class ThermalPrinterNotesCard extends LitElement {
     this._generation = 0;
     this._pendingRequests = 0;
     this._switching = false;
+    this._selectionResolved = false;
   }
 
   setConfig(config) {
@@ -179,6 +180,7 @@ class ThermalPrinterNotesCard extends LitElement {
     this._config = { ...config, device_id: config.device_id || "", columns };
     if (previousDevice !== this._config.device_id) {
       this._selectedDeviceId = this._config.device_id;
+      this._selectionResolved = false;
       this._resetForPrinter();
     }
   }
@@ -188,6 +190,7 @@ class ThermalPrinterNotesCard extends LitElement {
     if (this._sessionUserId && sessionUserId !== this._sessionUserId) {
       this._printers = [];
       this._selectedDeviceId = this._config?.device_id || "";
+      this._selectionResolved = false;
       this._resetForPrinter();
     }
     this._sessionUserId = sessionUserId;
@@ -303,13 +306,26 @@ class ThermalPrinterNotesCard extends LitElement {
     this._loading = true;
     const generation = this._generation;
     try {
-      const { printers } = await this._request("thermal_printer_notes/list_printers");
+      const { printers, last_used_device_id: lastUsed } =
+        await this._request("thermal_printer_notes/list_printers");
       this._printers = printers || [];
-      if (!this._selectedDeviceId) this._selectedDeviceId = this._printers[0]?.device_id || "";
+      if (!this._selectionResolved) {
+        if (lastUsed && this._printers.some((printer) => printer.device_id === lastUsed)) {
+          this._selectedDeviceId = lastUsed;
+        } else if (!this._selectedDeviceId) {
+          this._selectedDeviceId = this._printers[0]?.device_id || "";
+        }
+        this._selectionResolved = true;
+      }
       if (!this._selectedDeviceId) throw { code: "not_configured" };
       const state = await this._request("thermal_printer_notes/get_state");
       this._applyState(state);
       this._loaded = true;
+      try {
+        await this._request("thermal_printer_notes/select_printer");
+      } catch (err) {
+        this._showError(err, "error.remember_printer");
+      }
     } catch (err) {
       this._showError(err, "error.load_state");
     } finally {
