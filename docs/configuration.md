@@ -12,7 +12,16 @@ Die Datei [thermal-printer.yaml](../esphome/thermal-printer.yaml) ist ab v0.8.0 
 
 `network_type` ist entweder `wifi` oder `ethernet`. Es wird nur die gewählte Schnittstelle geladen. Ein Wechsel erfordert neue Firmware.
 
-Bei WLAN werden die bekannten Einträge `wifi_ssid` und `wifi_password` in der lokalen `secrets.yaml` benötigt. Die Namen sind im WLAN-Abschnitt der Basisdatei angegeben. Ethernet liest diese Secrets nicht ein. Passwörter gehören in `secrets.yaml`, nicht in ein öffentliches Repository.
+Bei WLAN die beiden Secret-Zuordnungen im WLAN-Abschnitt der Basisdatei aktivieren. Wie bei API und OTA lassen sich die Namen hinter `!secret` an die eigene `secrets.yaml` anpassen:
+
+```yaml
+  wifi_ssid: !secret mein_wlan_name
+  wifi_password: !secret mein_wlan_passwort
+```
+
+Die Substitutionsnamen links bleiben unverändert. Beide Zuordnungen zusammen setzen; die ursprünglichen Secret-Namen `wifi_ssid` und `wifi_password` müssen dann nicht zusätzlich existieren. Ältere Basisdateien ohne diese Zuordnungen verwenden weiterhin diese ursprünglichen Namen.
+
+Bei Ethernet beide Zeilen auskommentiert lassen. ESPHome liest ausdrücklich eingetragene `!secret`-Zuordnungen bereits beim Laden der Basisdatei, auch wenn das WLAN-Package nicht ausgewählt ist. Passwörter gehören in `secrets.yaml`, nicht in ein öffentliches Repository. Die frei wählbare Zuordnung erfordert Packages ab `v0.8.2`; ältere Release-Tags wie `v0.8.0` lesen weiterhin die fest vorgegebenen Secret-Namen.
 
 ## DHCP oder feste IP
 
@@ -47,6 +56,10 @@ Das Hotspot-Passwort muss mindestens acht Zeichen lang sein. Ein fehlendes oder 
 
 `web_server_enabled: "true"` aktiviert die lokale Weboberfläche. Port, Version, lokale Ressourcen und Anzeige interner Entitäten stehen direkt darunter. `web_server_local: "true"` hält die Oberflächenressourcen auf dem Gerät. Der generelle Standard ist ausgeschaltet; eine bestehende Installation mit aktivem Webserver kann ihre Werte übernehmen. Diese Weboberfläche hat mit den hier gezeigten Einstellungen keine eigene Anmeldung; API-Verschlüsselung und OTA-Passwort schützen jeweils ihre eigenen Schnittstellen.
 
+## Neustart und Diagnose
+
+Das Board-Package stellt einen Knopf `Restart ${friendly_name}` und den Diagnosesensor `${friendly_name} ESPHome Version` bereit. Bei WLAN kommt `${friendly_name} WiFi Signal` hinzu; dieser misst die Signalstärke in dBm alle 60 Sekunden. Bei Ethernet wird kein WLAN-Signalsensor angelegt. Die Entitäten werden gemeinsam mit der ESPHome-Firmware eingerichtet; bestehende Geräte benötigen dafür ein Firmware-Update. Der Neustart-Knopf startet den gesamten ESP32 neu.
+
 ## Board und Verdrahtung
 
 Standard ist Olimex ESP32-POE-ISO WROOM mit LAN8720. `esp32_board`, `esp32_variant` und `esp32_framework` legen den ESP fest. Die Ethernet-Pins und der Takt müssen zum tatsächlichen Board passen; der Boardname allein passt die Ethernet-Hardware nicht automatisch an.
@@ -55,7 +68,7 @@ Standard ist Olimex ESP32-POE-ISO WROOM mit LAN8720. `esp32_board`, `esp32_varia
 
 ## Softwarestand und ältere Dateien
 
-`thermal_printer_ref: main` lädt den aktuellen Entwicklungsstand. Für einen festen Stand genügt in der **neuen Basisdatei** `thermal_printer_ref: v0.8.0`: Packages und Treiber verwenden diesen Wert gemeinsam. `thermal_printer_refresh` steuert den Cache-Zeitraum. Ein abweichendes Repository muss kompatible Packages und die externe Komponente bereitstellen.
+`thermal_printer_ref: main` lädt den aktuellen Entwicklungsstand. Für einen festen Stand genügt in der **neuen Basisdatei** `thermal_printer_ref: v0.8.2`: Packages und Treiber verwenden diesen Wert gemeinsam. `thermal_printer_refresh` steuert den Cache-Zeitraum. Ein abweichendes Repository muss kompatible Packages und die externe Komponente bereitstellen.
 
 Eine ältere Konfiguration mit lokalem `thermal_printer.h`, manueller `new ThermalPrinterComponent(...)`-Initialisierung und einem 20-ms-Intervall wird durch die neue Basisdatei ersetzt. Die externe ESPHome-Komponente übernimmt Registrierung und Aufruf ihrer Schleife. Diese alten Blöcke nicht zusätzlich in die neue Konfiguration kopieren. Den alten Header für die neue Datei nicht mehr unter `includes` eintragen.
 

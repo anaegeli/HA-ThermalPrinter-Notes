@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.2
+
+- Expose Wi-Fi credential substitutions in the shared device template, so users can map `wifi_ssid` and `wifi_password` to their own secret names, like API and OTA credentials.
+- Keep existing Wi-Fi configurations using the standard secret names working. Ethernet installations need no Wi-Fi secrets when the template's credential lines remain commented out.
+- Add an ESP32 restart button and an ESPHome version diagnostic sensor for both network types.
+- Add a Wi-Fi signal diagnostic sensor in dBm, updated every 60 seconds, only for Wi-Fi configurations.
+- Validate custom-only secret names, legacy credentials and the new diagnostic entities without changing printer actions or private storage.
+
+For pinned configurations, set `thermal_printer_ref: v0.8.2`. Compile and upload the ESPHome firmware to obtain the new device entities; a HACS update alone does not change ESP firmware. Preserve your device name, UART wiring, network settings and secrets. No real device is flashed by this release workflow.
+
 ## 0.8.1
 
 - Remove the redundant EP-382C device template and its redirect-only test. Both models use `thermal-printer.yaml`; select `printer_model: ep-382c` for the 80 mm printer.
