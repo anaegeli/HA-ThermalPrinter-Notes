@@ -6,6 +6,7 @@ Eine HACS-Custom-Integration mit einer eigenen Lovelace-Karte für private Markd
 
 - Druckerauswahl direkt in der Karte; pro ESPHome-Gerät ein Druckerprofil
 - Ethernet oder WLAN über `network_type` oben in der Gerätekonfiguration
+- Frei wählbare WLAN-Secret-Namen, ESP32-Neustart-Knopf und Diagnose für ESPHome-Version und WLAN-Signal
 - Persönlicher Entwurf mit automatischem Speichern 500 ms nach der letzten Änderung
 - Persönlicher Verlauf pro Benutzer **und pro Drucker**; Standardlimit 20, zentral einstellbar von 1 bis 200
 - **Speichern** legt eine Notiz ohne Druck im Verlauf ab; beim Drucken wird der Verlaufseintrag zuerst angelegt
@@ -125,7 +126,7 @@ Ab v0.8.0 gibt es eine gemeinsame [thermal-printer.yaml](esphome/thermal-printer
 | Hardware | ESP32-Board, Variante, Framework, Ethernet-Hardware und UART-Pins |
 | Software | Ein gemeinsamer `thermal_printer_ref` für Packages und Treiber |
 
-Die [Einrichtungsanleitung](docs/configuration.md) erklärt jeden Bereich, DHCP/feste IP und die Umstellung bestehender Dateien. WLAN verwendet weiterhin `wifi_ssid` und `wifi_password` aus `secrets.yaml`; diese werden nur bei ausgewähltem WLAN geladen. Ethernet braucht keine WLAN-Secrets. Alle übrigen Geräteeinstellungen lassen sich oben in der Basisdatei ändern.
+Die [Einrichtungsanleitung](docs/configuration.md) erklärt jeden Bereich, DHCP/feste IP und die Umstellung bestehender Dateien. Im WLAN-Abschnitt der Basisdatei lassen sich `wifi_ssid` und `wifi_password` wie API-/OTA-Zugangsdaten auf eigene `!secret`-Namen abbilden. Für Ethernet bleiben diese Zeilen auskommentiert; dann werden keine WLAN-Secrets benötigt. Ältere Dateien ohne diese Zuordnungen verwenden weiterhin die bisherigen Secret-Namen. Alle Geräteeinstellungen lassen sich oben in der Basisdatei ändern.
 
 Das allgemeine Template verwendet Ethernet, DHCP und GPIO4/5. Tatsächliche Verdrahtung und vorhandene Einstellungen übernehmen: Bei einer Installation mit GPIO14/13 müssen diese Pins auch in der neuen Datei stehen. Der Board-Standard ist Olimex ESP32-POE-ISO WROOM; andere Boards benötigen passende Board- und Pin-Einstellungen.
 

@@ -1,11 +1,15 @@
 # Wi-Fi secrets are loaded only when this network is selected.
 packages:
+  # Select before loading secrets, so custom names need no legacy aliases.
+  credentials: !include network-wifi-${'credentials' if wifi_ssid is defined or wifi_password is defined else 'secrets'}.yaml
   # A missing password deliberately fails ESPHome's WPA minimum length check;
   # an empty string would otherwise silently create an unprotected hotspot.
   fallback_hotspot: >-
     ${ {"wifi": {"ap": {"ssid": wifi_ap_ssid, "password": wifi_ap_password or "!"}}, "captive_portal": {}} if {"true": true, "false": false}[wifi_ap_enabled] else {} }
 
-# Read the installation's secrets only when Wi-Fi is selected.
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
+sensor:
+  - platform: wifi_signal
+    id: thermal_printer_wifi_signal
+    name: "${friendly_name} WiFi Signal"
+    update_interval: 60s
+    entity_category: diagnostic

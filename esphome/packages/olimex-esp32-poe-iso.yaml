@@ -39,3 +39,15 @@ api:
 ota:
   - platform: esphome
     password: ${ota_password}
+
+button:
+  - platform: restart
+    id: thermal_printer_restart
+    name: "Restart ${friendly_name}"
+    entity_category: config
+
+text_sensor:
+  - platform: version
+    id: thermal_printer_esphome_version
+    name: "${friendly_name} ESPHome Version"
+    entity_category: diagnostic

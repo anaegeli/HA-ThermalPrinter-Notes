@@ -1,6 +1,6 @@
 # Thermal Printer: eine Basisdatei fuer beide Druckermodelle.
 # Alle Geraeteeinstellungen stehen hier. Anschliessend folgen nur die Imports.
-# WLAN-Zugangsdaten bleiben in secrets.yaml: wifi_ssid und wifi_password.
+# Die Namen hinter !secret an die eigene secrets.yaml anpassen.
 substitutions:
   # 1. Geraet und Drucker
   device_name: thermal-printer
@@ -20,8 +20,11 @@ substitutions:
   # Nach erfolgreichem Wechsel wieder leeren. Aendert nicht die Geraete-IP.
   network_use_address: ""
 
-  # 3. WLAN-Fallback-Hotspot (nur bei network_type: wifi)
-  # Normales WLAN verwendet !secret wifi_ssid und !secret wifi_password.
+  # 3. WLAN-Zugang und Fallback-Hotspot (nur bei network_type: wifi)
+  # Bei WLAN beide Zeilen aktivieren und die Namen hinter !secret anpassen.
+  # Bei Ethernet auskommentiert lassen, damit keine WLAN-Secrets noetig sind.
+  # wifi_ssid: !secret wifi_ssid
+  # wifi_password: !secret wifi_password
   wifi_ap_enabled: "false"  # true aktiviert auch das Captive Portal
   wifi_ap_ssid: "${device_name}_FH"
   # Bei aktivem Hotspot "" durch !secret wifi_hotspot_password ersetzen.
@@ -63,7 +66,7 @@ substitutions:
 
   # 9. Gemeinsamer Softwarestand fuer Packages UND C++-Treiber
   thermal_printer_repository: https://github.com/anaegeli/HA-ThermalPrinter-Notes
-  thermal_printer_ref: main  # alternativ ein Release-Tag, z.B. v0.8.0
+  thermal_printer_ref: main  # alternativ ein Release-Tag, z.B. v0.8.2
   thermal_printer_refresh: 1h
 
 # Ab hier sind fuer die Einrichtung keine Aenderungen erforderlich.

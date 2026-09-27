@@ -25,7 +25,7 @@ def local_template(source):
 
 
 def validate(network="ethernet", model="EP-261C", static=False, build=False,
-             legacy=False, features=False, invalid=None):
+             legacy=False, features=False, invalid=None, custom_wifi=False):
     with tempfile.TemporaryDirectory(prefix="thermal-printer-") as directory:
         work = Path(directory)
         shutil.copytree(ROOT / "esphome/packages", work / "packages")
@@ -37,7 +37,10 @@ def validate(network="ethernet", model="EP-261C", static=False, build=False,
         printer.write_text(source, encoding="utf-8")
         secrets = 'esphome_api_encryption_key: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="\nesphome_ota: "test-password"\n'
         if network == "wifi":
-            secrets += 'wifi_ssid: "Test-WLAN"\nwifi_password: "test-wifi-password"\n'
+            if custom_wifi:
+                secrets += 'my_network_name: "Custom-WLAN"\nmy_network_key: "custom-wifi-password"\n'
+            else:
+                secrets += 'wifi_ssid: "Test-WLAN"\nwifi_password: "test-wifi-password"\n'
         if features:
             secrets += 'wifi_hotspot_password: "test-hotspot-password"\n'
         (work / "secrets.yaml").write_text(secrets, encoding="utf-8")
@@ -50,6 +53,9 @@ def validate(network="ethernet", model="EP-261C", static=False, build=False,
         else:
             source = local_template((ROOT / "esphome/thermal-printer.yaml").read_text(encoding="utf-8"))
             source = source.replace("network_type: ethernet", f"network_type: {network}")
+            if custom_wifi:
+                source = source.replace("# wifi_ssid: !secret wifi_ssid", "wifi_ssid: !secret my_network_name")
+                source = source.replace("# wifi_password: !secret wifi_password", "wifi_password: !secret my_network_key")
             source = source.replace("printer_model: ep-261c", f"printer_model: {model.lower()}")
             if static:
                 source = source.replace("ip_mode: dhcp", "ip_mode: static").replace('static_ip: ""', 'static_ip: "192.0.2.10"').replace('gateway: ""', 'gateway: "192.0.2.1"').replace('dns1: "0.0.0.0"', 'dns1: "192.0.2.53"')
@@ -70,6 +76,18 @@ def validate(network="ethernet", model="EP-261C", static=False, build=False,
         assert config is not None, f"Invalid {model}/{network}/{static} config"
         CORE.config = config
         assert network in config and ("wifi" if network == "ethernet" else "ethernet") not in config
+        assert any(item["platform"] == "restart" for item in config["button"])
+        assert any(item["platform"] == "version" and item["entity_category"] == "diagnostic"
+                   for item in config["text_sensor"])
+        wifi_signals = [item for item in config["sensor"] if item["platform"] == "wifi_signal"]
+        assert len(wifi_signals) == (1 if network == "wifi" else 0)
+        if wifi_signals:
+            assert wifi_signals[0]["update_interval"].total_milliseconds == 60000
+            assert wifi_signals[0]["entity_category"] == "diagnostic"
+        if network == "wifi":
+            wifi_network = config["wifi"]["networks"][0]
+            assert wifi_network["ssid"] == ("Custom-WLAN" if custom_wifi else "Test-WLAN")
+            assert wifi_network["password"] == ("custom-wifi-password" if custom_wifi else "test-wifi-password")
         assert config["uart"][0]["tx_pin"]["number"] == 14
         assert config["uart"][0]["rx_pin"]["number"] == 13
         assert config["thermal_printer"]["model"] == model
@@ -113,6 +131,7 @@ if __name__ == "__main__":
             for mode in [args.ip_mode] if args.ip_mode else ["dhcp", "static"]:
                 validate(network, model, static=mode == "static", features=network == "wifi", build=args.compile)
     if not args.compile:
+        validate("wifi", custom_wifi=True)  # only custom secret names exist
         validate("wifi")  # no hotspot secret required while AP is disabled
         validate("ethernet", features=True)  # web server works independently of Wi-Fi
         validate(legacy=True)
