@@ -16,6 +16,7 @@ from .const import (
     DEFAULT_HISTORY_LIMIT,
     MAX_MARKDOWN_LENGTH,
     MAX_TITLE_LENGTH,
+    PREFERENCES_STORAGE_KEY,
     SIZES,
     STORAGE_KEY,
     STORAGE_VERSION,
@@ -32,6 +33,48 @@ EMPTY_DRAFT: dict[str, str] = {
 
 class ValidationError(ValueError):
     """Raised when draft or history input is invalid."""
+
+
+class UserPreferencesStore:
+    """Store integration-wide preferences for authenticated users."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self._store = storage.Store[dict[str, Any]](
+            hass, STORAGE_VERSION, PREFERENCES_STORAGE_KEY, private=True
+        )
+        self._data: dict[str, Any] = {"users": {}}
+        self._lock = asyncio.Lock()
+        self._loaded = False
+
+    async def async_load(self) -> None:
+        """Load preferences exactly once."""
+        async with self._lock:
+            if self._loaded:
+                return
+            loaded = await self._store.async_load()
+            if isinstance(loaded, dict) and isinstance(loaded.get("users"), dict):
+                self._data = loaded
+            self._loaded = True
+
+    async def async_get_last_printer(self, user_id: str) -> str:
+        """Return the authenticated user's last selected printer device."""
+        await self.async_load()
+        async with self._lock:
+            value = self._data.get("users", {}).get(user_id, {}).get(
+                "last_printer_device_id", ""
+            )
+            return str(value or "")
+
+    async def async_set_last_printer(self, user_id: str, device_id: str) -> None:
+        """Persist the authenticated user's last selected printer device."""
+        await self.async_load()
+        async with self._lock:
+            users = self._data.setdefault("users", {})
+            user = users.setdefault(user_id, {})
+            if user.get("last_printer_device_id") == device_id:
+                return
+            user["last_printer_device_id"] = device_id
+            await self._store.async_save(self._data)
 
 
 def validate_document(document: dict[str, Any]) -> dict[str, str]:

@@ -20,11 +20,17 @@ from .const import (
     source_device_id,
 )
 from .devices import suggested_print_action
-from .storage import UserDataStore, ValidationError, validate_document
+from .storage import (
+    UserDataStore,
+    UserPreferencesStore,
+    ValidationError,
+    validate_document,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 WS_LIST_PRINTERS = f"{DOMAIN}/list_printers"
+WS_SELECT_PRINTER = f"{DOMAIN}/select_printer"
 WS_GET_STATE = f"{DOMAIN}/get_state"
 WS_SAVE_DRAFT = f"{DOMAIN}/save_draft"
 WS_SAVE_HISTORY = f"{DOMAIN}/save_history"
@@ -243,12 +249,54 @@ async def websocket_list_printers(
     msg: dict[str, Any],
 ) -> None:
     """List selectable integration-owned printer devices."""
-    runtimes = hass.data.get(DOMAIN, {}).get("entries", {}).values()
+    root = hass.data.get(DOMAIN, {})
+    runtimes = root.get("entries", {}).values()
     printers = sorted(
         (_printer_payload(item) for item in runtimes),
         key=lambda item: item["name"].casefold(),
     )
-    connection.send_result(msg["id"], {"printers": printers})
+    try:
+        user_id, _ = _user(connection)
+    except ApiError as err:
+        _send_api_error(connection, msg["id"], err)
+        return
+    preferences: UserPreferencesStore | None = root.get("preferences")
+    last_used = (
+        await preferences.async_get_last_printer(user_id) if preferences else ""
+    )
+    available = {item["device_id"] for item in printers}
+    connection.send_result(
+        msg["id"],
+        {
+            "printers": printers,
+            "last_used_device_id": last_used if last_used in available else "",
+        },
+    )
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): WS_SELECT_PRINTER, vol.Required("device_id"): str}
+)
+@websocket_api.async_response
+async def websocket_select_printer(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Remember a valid printer separately for each authenticated user."""
+    try:
+        runtime = _runtime(hass, msg)
+        user_id, _ = _user(connection)
+        preferences: UserPreferencesStore = hass.data[DOMAIN]["preferences"]
+        await preferences.async_set_last_printer(user_id, runtime["device_id"])
+    except (ApiError, KeyError) as err:
+        _send_api_error(
+            connection,
+            msg["id"],
+            err if isinstance(err, ApiError) else ApiError("not_configured"),
+        )
+        return
+    connection.send_result(msg["id"], {"device_id": runtime["device_id"]})
 
 
 @websocket_api.websocket_command(
@@ -489,6 +537,7 @@ async def websocket_history_print(
 def async_register_websocket_commands(hass: HomeAssistant) -> None:
     """Register the authenticated frontend API once."""
     websocket_api.async_register_command(hass, websocket_list_printers)
+    websocket_api.async_register_command(hass, websocket_select_printer)
     websocket_api.async_register_command(hass, websocket_get_state)
     websocket_api.async_register_command(hass, websocket_save_draft)
     websocket_api.async_register_command(hass, websocket_save_history)

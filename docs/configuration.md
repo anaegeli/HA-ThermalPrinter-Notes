@@ -68,7 +68,7 @@ Standard ist Olimex ESP32-POE-ISO WROOM mit LAN8720. `esp32_board`, `esp32_varia
 
 ## Softwarestand und ältere Dateien
 
-`thermal_printer_ref: main` lädt den aktuellen Entwicklungsstand. Für einen festen Stand genügt in der **neuen Basisdatei** `thermal_printer_ref: v0.8.2`: Packages und Treiber verwenden diesen Wert gemeinsam. `thermal_printer_refresh` steuert den Cache-Zeitraum. Ein abweichendes Repository muss kompatible Packages und die externe Komponente bereitstellen.
+`thermal_printer_ref: main` lädt den aktuellen Entwicklungsstand. Für einen festen Stand genügt in der **neuen Basisdatei** `thermal_printer_ref: v0.9.0`: Packages und Treiber verwenden diesen Wert gemeinsam. `thermal_printer_refresh` steuert den Cache-Zeitraum. Ein abweichendes Repository muss kompatible Packages und die externe Komponente bereitstellen.
 
 Eine ältere Konfiguration mit lokalem `thermal_printer.h`, manueller `new ThermalPrinterComponent(...)`-Initialisierung und einem 20-ms-Intervall wird durch die neue Basisdatei ersetzt. Die externe ESPHome-Komponente übernimmt Registrierung und Aufruf ihrer Schleife. Diese alten Blöcke nicht zusätzlich in die neue Konfiguration kopieren. Den alten Header für die neue Datei nicht mehr unter `includes` eintragen.
 

@@ -21,7 +21,7 @@ from .devices import (
     source_device_name,
 )
 from .frontend import async_register_frontend
-from .storage import UserDataStore
+from .storage import UserDataStore, UserPreferencesStore
 from .websocket import async_register_websocket_commands
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
@@ -32,6 +32,9 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     runtime_root = hass.data.setdefault(DOMAIN, {})
     runtime_root.setdefault("entries", {})
     runtime_root.setdefault("devices", {})
+    preferences = UserPreferencesStore(hass)
+    await preferences.async_load()
+    runtime_root["preferences"] = preferences
     async_register_websocket_commands(hass)
     await async_register_frontend(hass)
     return True

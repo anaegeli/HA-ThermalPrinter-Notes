@@ -58,6 +58,7 @@ module(f"{domain}.frontend", async_register_frontend=None)
 module(f"{domain}.websocket", async_register_websocket_commands=None)
 integration = importlib.import_module(domain)
 UserDataStore = importlib.import_module(f"{domain}.storage").UserDataStore
+UserPreferencesStore = importlib.import_module(f"{domain}.storage").UserPreferencesStore
 const = importlib.import_module(f"{domain}.const")
 
 
@@ -76,6 +77,14 @@ async def run():
             setattr(target, name, value)
 
     hass = SimpleNamespace(data={}, config_entries=SimpleNamespace(async_update_entry=update_entry))
+    preferences = UserPreferencesStore(hass)
+    await preferences.async_load()
+    await preferences.async_set_last_printer("alice", "printer-A")
+    await preferences.async_set_last_printer("bob", "printer-B")
+    assert await preferences.async_get_last_printer("alice") == "printer-A"
+    assert await preferences.async_get_last_printer("bob") == "printer-B"
+    reloaded_preferences = UserPreferencesStore(hass)
+    assert await reloaded_preferences.async_get_last_printer("alice") == "printer-A"
     assert await integration.async_migrate_entry(hass, entry)
     assert entry.version == 2 and entry.data["legacy_storage"]
     assert entry.unique_id == "esp-A"

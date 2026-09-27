@@ -6,7 +6,7 @@ from typing import Final
 
 DOMAIN: Final = "thermal_printer_notes"
 NAME: Final = "Thermal Printer Notes"
-VERSION: Final = "0.8.2"
+VERSION: Final = "0.9.0"
 
 CONF_SOURCE_DEVICE_ID: Final = "source_device_id"
 CONF_PRINTER_MODEL: Final = "printer_model"
@@ -36,6 +36,7 @@ ALIGNMENTS: Final = ("left", "center", "right")
 SIZES: Final = ("small", "normal", "double_width", "double_size")
 
 STORAGE_KEY: Final = DOMAIN
+PREFERENCES_STORAGE_KEY: Final = f"{DOMAIN}.preferences"
 STORAGE_VERSION: Final = 1
 
 FRONTEND_URL: Final = f"/{DOMAIN}"

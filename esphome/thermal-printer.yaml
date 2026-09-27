@@ -66,7 +66,7 @@ substitutions:
 
   # 9. Gemeinsamer Softwarestand fuer Packages UND C++-Treiber
   thermal_printer_repository: https://github.com/anaegeli/HA-ThermalPrinter-Notes
-  thermal_printer_ref: main  # alternativ ein Release-Tag, z.B. v0.8.2
+  thermal_printer_ref: main  # alternativ ein Release-Tag, z.B. v0.9.0
   thermal_printer_refresh: 1h
 
 # Ab hier sind fuer die Einrichtung keine Aenderungen erforderlich.

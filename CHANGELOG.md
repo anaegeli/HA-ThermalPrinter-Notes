@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.0
+
+- Remember the last printer selected in the card separately for every authenticated Home Assistant user.
+- Restore that selection across browsers and sessions while retaining the card's configured start printer as a fallback for users without a personal choice.
+- Keep multiple printers isolated as separate integration entries with independent drafts, history, settings and print actions.
+- Ignore stale preferences for removed printers and fall back safely without redirecting an explicitly unavailable configured printer.
+
+Update through HACS, restart Home Assistant and reload the dashboard. No ESPHome firmware update is required for this release. Existing integration entries, private drafts, history and card configuration remain compatible.
+
 ## 0.8.2
 
 - Expose Wi-Fi credential substitutions in the shared device template, so users can map `wifi_ssid` and `wifi_password` to their own secret names, like API and OTA credentials.
