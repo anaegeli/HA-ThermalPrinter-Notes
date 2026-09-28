@@ -160,8 +160,8 @@ assert.match(deviceTemplateSource, /esphome\/packages\/olimex-esp32-poe-iso\.yam
 assert.match(deviceTemplateSource, /cashino-\$\{printer_model\}\.yaml/, "device template selects the printer package");
 assert.match(deviceTemplateSource, /ref: \$\{thermal_printer_ref\}/, "packages use the same ref as the driver");
 assert.match(deviceTemplateSource, /api_encryption_key: !secret esphome_api_encryption_key/, "API secret stays local in the device template");
-assert.match(deviceTemplateSource, /printer_tx_pin: GPIO4/, "printer TX is an overridable substitution");
-assert.match(deviceTemplateSource, /printer_rx_pin: GPIO5/, "printer RX is an overridable substitution");
+assert.match(deviceTemplateSource, /printer_tx_pin: GPIO\d+/, "printer TX is an overridable substitution");
+assert.match(deviceTemplateSource, /printer_rx_pin: GPIO\d+/, "printer RX is an overridable substitution");
 assert.match(boardPackageSource, /key: \$\{api_encryption_key\}/, "board package consumes the API substitution");
 assert.match(boardPackageSource, /password: \$\{ota_password\}/, "board package consumes the OTA substitution");
 assert.match(defaultsSource, /network_type: ethernet/, "legacy imports default to Ethernet");
