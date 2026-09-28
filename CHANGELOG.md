@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.10.0
+
+- Add a three-way cutter setting in Home Assistant: Full Cut, Partial Cut or Off. Existing Boolean cutter settings migrate to Full Cut or Off without rewriting stored entries.
+- Keep the existing ESPHome `print_markdown` action and add `print_markdown_mode` for explicit full/partial/off commands. The integration prefers the new action when the updated firmware is available and remains compatible with older firmware.
+- Add optional DTR hardware flow control with configurable GPIO and ready-level polarity. It is disabled by default; existing three-wire installations keep their previous behavior.
+- Make DTR-controlled transmission follow the configured UART baud rate while retaining the conservative 800-byte/s limit when DTR is disabled.
+- Document the electrical requirements, GPIO36 example, baud-rate matching and commissioning sequence.
+
+Update the integration through HACS, restart Home Assistant, and compile/upload the v0.10.0 ESPHome firmware to use Partial Cut or DTR. The printer and ESPHome baud rates must match. Do not connect DTR directly unless its signal is safe for the ESP32 input.
+
 ## 0.9.0
 
 - Remember the last printer selected in the card separately for every authenticated Home Assistant user.

@@ -6,7 +6,7 @@ from typing import Final
 
 DOMAIN: Final = "thermal_printer_notes"
 NAME: Final = "Thermal Printer Notes"
-VERSION: Final = "0.9.0"
+VERSION: Final = "0.10.0"
 
 CONF_SOURCE_DEVICE_ID: Final = "source_device_id"
 CONF_PRINTER_MODEL: Final = "printer_model"
@@ -19,6 +19,7 @@ CONF_COPIES: Final = "copies"
 CONF_FEED_LINES: Final = "feed_lines"
 CONF_REVERSE_PRINT: Final = "reverse_print"
 CONF_CUT: Final = "cut"
+CONF_CUT_MODE: Final = "cut_mode"
 
 DEFAULT_PRINT_ACTION: Final = "esphome.thermal_printer_print_markdown"
 DEFAULT_HISTORY_LIMIT: Final = 20
@@ -26,6 +27,7 @@ DEFAULT_COPIES: Final = 1
 DEFAULT_FEED_LINES: Final = 4
 DEFAULT_REVERSE_PRINT: Final = False
 DEFAULT_CUT: Final = True
+DEFAULT_CUT_MODE: Final = "full"
 
 MIN_HISTORY_LIMIT: Final = 1
 MAX_HISTORY_LIMIT: Final = 200
@@ -34,6 +36,7 @@ MAX_TITLE_LENGTH: Final = 80
 
 ALIGNMENTS: Final = ("left", "center", "right")
 SIZES: Final = ("small", "normal", "double_width", "double_size")
+CUT_MODES: Final = ("full", "partial", "off")
 
 STORAGE_KEY: Final = DOMAIN
 PREFERENCES_STORAGE_KEY: Final = f"{DOMAIN}.preferences"
@@ -78,6 +81,14 @@ def preview_profile(entry) -> dict[str, object]:
 
 def entry_settings(entry) -> dict[str, object]:
     """Return normalized central settings for a config entry."""
+    cut_mode = entry.options.get(
+        CONF_CUT_MODE, entry.data.get(CONF_CUT_MODE)
+    )
+    if cut_mode not in CUT_MODES:
+        legacy_cut = entry.options.get(
+            CONF_CUT, entry.data.get(CONF_CUT, DEFAULT_CUT)
+        )
+        cut_mode = DEFAULT_CUT_MODE if bool(legacy_cut) else "off"
     return {
         CONF_PRINTER_MODEL: printer_model(entry),
         CONF_PRINT_ACTION: entry.options.get(
@@ -94,5 +105,7 @@ def entry_settings(entry) -> dict[str, object]:
         CONF_REVERSE_PRINT: bool(
             entry.options.get(CONF_REVERSE_PRINT, DEFAULT_REVERSE_PRINT)
         ),
-        CONF_CUT: bool(entry.options.get(CONF_CUT, DEFAULT_CUT)),
+        CONF_CUT_MODE: cut_mode,
+        # Kept in state responses for older card resources during an upgrade.
+        CONF_CUT: cut_mode != "off",
     }

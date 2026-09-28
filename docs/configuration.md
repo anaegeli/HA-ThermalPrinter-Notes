@@ -64,11 +64,27 @@ Das Board-Package stellt einen Knopf `Restart ${friendly_name}` und den Diagnose
 
 Standard ist Olimex ESP32-POE-ISO WROOM mit LAN8720. `esp32_board`, `esp32_variant` und `esp32_framework` legen den ESP fest. Die Ethernet-Pins und der Takt müssen zum tatsächlichen Board passen; der Boardname allein passt die Ethernet-Hardware nicht automatisch an.
 
-`printer_tx_pin` ist der ESP-Ausgang zum Drucker-RX, `printer_rx_pin` der ESP-Eingang vom Drucker-TX. Die allgemeine Vorlage enthält GPIO4/5. Bei einer vorhandenen Verdrahtung mit GPIO14/13 diese Werte beibehalten. Die Baudrate muss zur Selbsttestseite des Druckers passen. Hinweise zu Spannungen und Schnittstellen stehen in der [EP-382C-Anleitung](ep-382c.md).
+`printer_tx_pin` ist der ESP-Ausgang zum Drucker-RX, `printer_rx_pin` der ESP-Eingang vom Drucker-TX. Die allgemeine Vorlage enthält GPIO4/5. Bei einer vorhandenen Verdrahtung mit GPIO14/13 diese Werte beibehalten. `printer_baud_rate` kann in der YAML geändert werden, muss aber exakt der dauerhaft im Drucker eingestellten Baudrate entsprechen.
+
+Optionales DTR-Hardware-Flow-Control wird so eingerichtet:
+
+```yaml
+  printer_dtr_enabled: "true"
+  printer_dtr_pin: GPIO36
+  printer_dtr_inverted: "false"  # HIGH = bereit; true bedeutet LOW = bereit
+```
+
+Bei deaktiviertem DTR bleibt die konservative Begrenzung auf 16 Bytes alle 20 ms bestehen. Bei aktiviertem DTR prüft der Treiber die Ready-Leitung vor jedem kleinen Block und berechnet die Blockgrösse aus `printer_baud_rate`. Eine höhere Baudrate beschleunigt deshalb nur zusammen mit der passenden Druckerkonfiguration; DTR schützt dabei vor einem vollen Empfangspuffer.
+
+GPIO36 ist nur ein Beispiel für das Olimex ESP32-POE-ISO WROOM. DTR ist ein Druckerausgang und gehört an einen ESP-Eingang. Vor dem Anschluss Signalspannung, Polarität und die konkrete TTL-/RS232-Ausführung prüfen. Ein Pull-up auf dem Board ersetzt keinen Pegelwandler. Hinweise zu Spannungen und Schnittstellen stehen in der [EP-382C-Anleitung](ep-382c.md).
+
+## Schnittmodus
+
+Unter den Optionen des Home-Assistant-Integrationseintrags bietet **Nach dem Druck schneiden** die Werte Full Cut, Partial Cut und Aus. Full Cut sendet `GS V 0`, Partial Cut `GS V 1`; Aus sendet keinen Schneidebefehl. Für Partial Cut müssen Integration und ESPHome-Firmware mindestens Version 0.10.0 verwenden.
 
 ## Softwarestand und ältere Dateien
 
-`thermal_printer_ref: main` lädt den aktuellen Entwicklungsstand. Für einen festen Stand genügt in der **neuen Basisdatei** `thermal_printer_ref: v0.9.0`: Packages und Treiber verwenden diesen Wert gemeinsam. `thermal_printer_refresh` steuert den Cache-Zeitraum. Ein abweichendes Repository muss kompatible Packages und die externe Komponente bereitstellen.
+`thermal_printer_ref: main` lädt den aktuellen Entwicklungsstand. Für einen festen Stand genügt in der **neuen Basisdatei** `thermal_printer_ref: v0.10.0`: Packages und Treiber verwenden diesen Wert gemeinsam. `thermal_printer_refresh` steuert den Cache-Zeitraum. Ein abweichendes Repository muss kompatible Packages und die externe Komponente bereitstellen.
 
 Eine ältere Konfiguration mit lokalem `thermal_printer.h`, manueller `new ThermalPrinterComponent(...)`-Initialisierung und einem 20-ms-Intervall wird durch die neue Basisdatei ersetzt. Die externe ESPHome-Komponente übernimmt Registrierung und Aufruf ihrer Schleife. Diese alten Blöcke nicht zusätzlich in die neue Konfiguration kopieren. Den alten Header für die neue Datei nicht mehr unter `includes` eintragen.
 

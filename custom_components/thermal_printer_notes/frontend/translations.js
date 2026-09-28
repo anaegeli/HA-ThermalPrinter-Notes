@@ -105,7 +105,8 @@ const TRANSLATIONS = {
     "settings.reverse": "Rückwärtsdruck",
     "settings.copies": "{count} Exemplar(e)",
     "settings.feed": "{count} Vorschubzeilen",
-    "settings.cut_on": "Schneiden ein",
+    "settings.cut_full": "Full Cut",
+    "settings.cut_partial": "Partial Cut",
     "settings.cut_off": "Schneiden aus"
   },
   en: {
@@ -212,7 +213,8 @@ const TRANSLATIONS = {
     "settings.reverse": "Reverse print",
     "settings.copies": "{count} copy/copies",
     "settings.feed": "{count} feed lines",
-    "settings.cut_on": "Cut on",
+    "settings.cut_full": "Full Cut",
+    "settings.cut_partial": "Partial Cut",
     "settings.cut_off": "Cut off"
   }
 };

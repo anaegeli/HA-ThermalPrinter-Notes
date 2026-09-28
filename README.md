@@ -123,12 +123,14 @@ Ab v0.8.0 gibt es eine gemeinsame [thermal-printer.yaml](esphome/thermal-printer
 | WLAN-Fallback | Hotspot aktivieren, SSID, Passwort; Captive Portal wird mitgeladen |
 | Zugang | API-Verschlüsselung und OTA-Passwort als lokale Secrets |
 | Oberfläche | Webserver aktivieren, Port, Version, lokale Ressourcen, interne Entitäten |
-| Hardware | ESP32-Board, Variante, Framework, Ethernet-Hardware und UART-Pins |
+| Hardware | ESP32-Board, Variante, Framework, Ethernet-Hardware, UART-Pins, Baudrate und optionales DTR |
 | Software | Ein gemeinsamer `thermal_printer_ref` für Packages und Treiber |
 
 Die [Einrichtungsanleitung](docs/configuration.md) erklärt jeden Bereich, DHCP/feste IP und die Umstellung bestehender Dateien. Im WLAN-Abschnitt der Basisdatei lassen sich `wifi_ssid` und `wifi_password` wie API-/OTA-Zugangsdaten auf eigene `!secret`-Namen abbilden. Für Ethernet bleiben diese Zeilen auskommentiert; dann werden keine WLAN-Secrets benötigt. Ältere Dateien ohne diese Zuordnungen verwenden weiterhin die bisherigen Secret-Namen. Alle Geräteeinstellungen lassen sich oben in der Basisdatei ändern.
 
-Das allgemeine Template verwendet Ethernet, DHCP und GPIO4/5. Tatsächliche Verdrahtung und vorhandene Einstellungen übernehmen: Bei einer Installation mit GPIO14/13 müssen diese Pins auch in der neuen Datei stehen. Der Board-Standard ist Olimex ESP32-POE-ISO WROOM; andere Boards benötigen passende Board- und Pin-Einstellungen.
+Das allgemeine Template verwendet Ethernet, DHCP und GPIO4/5. Tatsächliche Verdrahtung und vorhandene Einstellungen übernehmen: Bei einer Installation mit GPIO14/13 müssen diese Pins auch in der neuen Datei stehen. Der Board-Standard ist Olimex ESP32-POE-ISO WROOM; andere Boards benötigen passende Board- und Pin-Einstellungen. Die Baudrate wird mit `printer_baud_rate` eingestellt und muss im Drucker identisch konfiguriert sein.
+
+DTR ist standardmässig deaktiviert. Mit `printer_dtr_enabled: "true"` wertet der Treiber `printer_dtr_pin` als Ready/Busy-Eingang aus und passt die Übertragungsmenge an die Baudrate an. `printer_dtr_inverted: "false"` bedeutet HIGH = bereit; `"true"` bedeutet LOW = bereit. Vor dem Anschluss müssen Signalart und Spannung zum 3,3-V-Eingang des ESP32 passen.
 
 ### Aufbau der Packages
 
@@ -160,7 +162,7 @@ Bei mehreren Druckern erhält jeder Integrationseintrag einen eigenen privaten S
 
 ## Druckparameter
 
-Die Integration ruft den konfigurierten ESPHome-Dienst mit diesen Feldern auf:
+Die Integration verwendet mit aktueller Firmware die Aktion `print_markdown_mode` mit diesen Feldern:
 
 ```yaml
 markdown_content: "# Optionaler Titel\nMarkdown-Inhalt"
@@ -171,10 +173,10 @@ size: normal
 copies: 1
 feed_lines: 4
 reverse_print: false
-cut: true
+cut_mode: partial
 ```
 
-`alignment` kann `left`, `center` oder `right` sein. Für neue Entwürfe kann `size` `small`, `normal` oder `double_size` sein. `small` verwendet den nativen Font B mit 9 × 17 Druckpunkten und 42 Zeichen (EP-261C) beziehungsweise 64 Zeichen (EP-382C) pro Zeile. Der frühere Wert `double_width` bleibt ausschliesslich für bestehende Entwürfe und Verlaufseinträge kompatibel; neue Inhalte verwenden stattdessen `==breit==` gezielt im Markdown.
+`cut_mode` kann `full`, `partial` oder `off` sein und wird in den Integrationsoptionen als **Nach dem Druck schneiden** gewählt. Die bisherige Aktion `print_markdown` mit `cut: true/false` bleibt für bestehende Automationen erhalten und verwendet Full Cut beziehungsweise Off. `alignment` kann `left`, `center` oder `right` sein. Für neue Entwürfe kann `size` `small`, `normal` oder `double_size` sein. `small` verwendet den nativen Font B mit 9 × 17 Druckpunkten und 42 Zeichen (EP-261C) beziehungsweise 64 Zeichen (EP-382C) pro Zeile. Der frühere Wert `double_width` bleibt ausschliesslich für bestehende Entwürfe und Verlaufseinträge kompatibel; neue Inhalte verwenden stattdessen `==breit==` gezielt im Markdown.
 
 ## Lizenz und Danksagung
 

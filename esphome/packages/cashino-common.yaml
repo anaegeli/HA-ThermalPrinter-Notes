@@ -20,12 +20,16 @@ uart:
   parity: NONE
   stop_bits: 1
   rx_buffer_size: ${printer_rx_buffer_size}
-  # Printer DTR is intentionally unused. ESPHome flow_control_pin controls
-  # RS485 direction and is not TTL DTR/DSR flow control.
+  # ESPHome flow_control_pin is intentionally not used: it controls an RS485
+  # sender direction, not the printer's DTR ready/busy output.
 
 thermal_printer:
   id: printer_driver
   uart_id: printer_uart
+  baud_rate: ${printer_baud_rate}
+  dtr_enabled: ${printer_dtr_enabled}
+  dtr_pin: ${printer_dtr_pin}
+  dtr_inverted: ${printer_dtr_inverted}
 
 api:
   # Home Assistant action:
@@ -56,12 +60,46 @@ api:
                                          (feed_lines > 20 ? 20 : feed_lines);
             options.feed_lines = static_cast<uint8_t>(limited_feed);
             options.reverse_print = reverse_print;
-            options.cut = cut;
+            options.cut_mode = cut ? CutMode::FULL : CutMode::OFF;
             const int32_t limited_copies = copies < 1 ? 1 :
                                            (copies > 5 ? 5 : copies);
             const uint8_t safe_copies = static_cast<uint8_t>(limited_copies);
             id(printer_driver)->enqueue_markdown(
                 markdown_content, options, safe_copies);
+
+    # Preferred action for v0.10.0 and newer. The legacy action above remains
+    # available for existing Home Assistant automations and older integrations.
+    - action: print_markdown_mode
+      variables:
+        markdown_content: string
+        print_user: string
+        print_timestamp: string
+        alignment: string
+        size: string
+        copies: int
+        feed_lines: int
+        reverse_print: bool
+        cut_mode: string
+      then:
+        - lambda: |-
+            PrintOptions options;
+            options.header_left = print_user.str();
+            options.header_right = print_timestamp.str();
+            options.alignment = alignment == "center" ? 1 :
+                                (alignment == "right" ? 2 : 0);
+            options.size = size == "double_width" ? 1 :
+                           (size == "double_size" ? 2 :
+                           (size == "small" ? 3 : 0));
+            const int32_t limited_feed = feed_lines < 0 ? 0 :
+                                         (feed_lines > 20 ? 20 : feed_lines);
+            options.feed_lines = static_cast<uint8_t>(limited_feed);
+            options.reverse_print = reverse_print;
+            options.cut_mode = cut_mode == "partial" ? CutMode::PARTIAL :
+                               (cut_mode == "off" ? CutMode::OFF : CutMode::FULL);
+            const int32_t limited_copies = copies < 1 ? 1 :
+                                           (copies > 5 ? 5 : copies);
+            id(printer_driver)->enqueue_markdown(
+                markdown_content, options, static_cast<uint8_t>(limited_copies));
 
 button:
   - platform: template

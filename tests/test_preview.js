@@ -160,8 +160,8 @@ assert.match(deviceTemplateSource, /esphome\/packages\/olimex-esp32-poe-iso\.yam
 assert.match(deviceTemplateSource, /cashino-\$\{printer_model\}\.yaml/, "device template selects the printer package");
 assert.match(deviceTemplateSource, /ref: \$\{thermal_printer_ref\}/, "packages use the same ref as the driver");
 assert.match(deviceTemplateSource, /api_encryption_key: !secret esphome_api_encryption_key/, "API secret stays local in the device template");
-assert.match(deviceTemplateSource, /printer_tx_pin: GPIO4/, "printer TX is an overridable substitution");
-assert.match(deviceTemplateSource, /printer_rx_pin: GPIO5/, "printer RX is an overridable substitution");
+assert.match(deviceTemplateSource, /printer_tx_pin: GPIO\d+/, "printer TX is an overridable substitution");
+assert.match(deviceTemplateSource, /printer_rx_pin: GPIO\d+/, "printer RX is an overridable substitution");
 assert.match(boardPackageSource, /key: \$\{api_encryption_key\}/, "board package consumes the API substitution");
 assert.match(boardPackageSource, /password: \$\{ota_password\}/, "board package consumes the OTA substitution");
 assert.match(defaultsSource, /network_type: ethernet/, "legacy imports default to Ethernet");
@@ -171,7 +171,9 @@ assert.match(printerPackageSource, /size == "small" \? 3/, "ESPHome maps small t
 assert.match(printerPackageSource, /id\(printer_driver\)->enqueue_markdown/, "print action uses the registered external component");
 assert.match(componentSource, /uart\.register_uart_device/, "external component registers its UART parent");
 assert.match(driverSource, /public Component, public uart::UARTDevice/, "driver is a native ESPHome component");
-assert.match(driverSource, /void setup\(\) override \{ begin\(\); \}/, "ESPHome initializes the driver automatically");
+assert.match(driverSource, /void setup\(\) override \{[\s\S]*begin\(\);[\s\S]*\}/, "ESPHome initializes the driver automatically");
+assert.match(driverSource, /CutMode::PARTIAL[\s\S]*0x01/, "driver emits partial-cut mode");
+assert.match(driverSource, /dtr_pin_->digital_read\(\)/, "driver gates transmission with the DTR input");
 assert.match(driverSource, /options\.size == 3 \? 1 : 0/, "driver mode 3 selects Font B");
 assert.match(driverSource, /options\.size == 3\) return small_columns\(\)/, "driver mode 3 uses model-specific Font B width");
 assert.match(driverSource, /character\.wide && base_size == 0 \? 2 : 1/, "driver counts inline-wide characters as two columns");

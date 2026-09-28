@@ -863,7 +863,7 @@ class ThermalPrinterNotesCard extends LitElement {
         <section class="preview"><div class="section-title"><ha-icon icon="mdi:eye-outline"></ha-icon>${this._t("preview.title")}</div>${this._renderPreview()}</section>
         <section class="history-panel"><div class="history-head" @click=${() => { this._historyOpen = !this._historyOpen; }}><div class="section-title" style="margin:0"><ha-icon icon="mdi:history"></ha-icon>${this._t("history.title", { count: this._history.length })}</div><ha-icon icon=${this._historyOpen ? "mdi:chevron-up" : "mdi:chevron-down"}></ha-icon></div>${this._renderHistory()}</section>
       </fieldset>
-      <div class="settings"><div class="section-title"><ha-icon icon="mdi:tune-variant"></ha-icon>${this._t("settings.title")}</div><div class="settings-text">${this._t(this._settings.reverse_print ? "settings.reverse" : "settings.forward")} · ${this._t("settings.copies", { count: this._settings.copies ?? 1 })} · ${this._t("settings.feed", { count: this._settings.feed_lines ?? 4 })} · ${this._t(this._settings.cut ? "settings.cut_on" : "settings.cut_off")}</div></div>
+      <div class="settings"><div class="section-title"><ha-icon icon="mdi:tune-variant"></ha-icon>${this._t("settings.title")}</div><div class="settings-text">${this._t(this._settings.reverse_print ? "settings.reverse" : "settings.forward")} · ${this._t("settings.copies", { count: this._settings.copies ?? 1 })} · ${this._t("settings.feed", { count: this._settings.feed_lines ?? 4 })} · ${this._t(`settings.cut_${this._settings.cut_mode || (this._settings.cut === false ? "off" : "full")}`)}</div></div>
     </div></ha-card>`;
   }
 }
