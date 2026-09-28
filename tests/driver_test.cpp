@@ -81,7 +81,7 @@ int main() {
     test_clock += 16000;
     assert(!sensor.ready());
 
-    GPIOPin dtr;
+    esphome::GPIOPin dtr;
     ThermalPrinterComponent flow;
     flow.set_ep_382c(wide);
     flow.set_dtr_pin(&dtr);
