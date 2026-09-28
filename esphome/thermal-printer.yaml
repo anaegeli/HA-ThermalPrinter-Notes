@@ -58,8 +58,8 @@ substitutions:
 
   # 8. Drucker-UART: ESP TX -> Drucker RX, ESP RX <- Drucker TX
   # Die tatsaechliche Verdrahtung eintragen; keine Pins blind uebernehmen.
-  printer_tx_pin: GPIO4
-  printer_rx_pin: GPIO5
+  printer_tx_pin: GPIO14
+  printer_rx_pin: GPIO13
   printer_baud_rate: "9600"  # muss zur Selbsttestseite passen
   printer_rx_buffer_size: "256"
   printer_feed_button_lines: "5"
