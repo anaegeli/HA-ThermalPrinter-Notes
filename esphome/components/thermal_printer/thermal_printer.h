@@ -42,6 +42,8 @@ static constexpr size_t TP_MAX_QUEUED_BYTES = 131072;
 static constexpr size_t TP_MAX_QUEUE_JOBS = 5;
 static constexpr size_t TP_TX_CHUNK = 16;  // 800 B/s at one chunk per 20 ms
 
+enum class CutMode : uint8_t { OFF = 0, FULL = 1, PARTIAL = 2 };
+
 struct PrintOptions {
   uint8_t alignment{0};  // 0 left, 1 centered, 2 right
   uint8_t size{0};       // 0 normal, 1 double width, 2 double size, 3 small
@@ -49,7 +51,7 @@ struct PrintOptions {
   // Firmware extension: ESC { is not documented in the EP-261C manual but is
   // confirmed on SV2.00.02; it is documented in the EP-382C manual (p. 23).
   bool reverse_print{false};
-  bool cut{true};
+  CutMode cut_mode{CutMode::FULL};
   std::string header_left;
   std::string header_right;
 };
@@ -64,11 +66,18 @@ class ThermalPrinterComponent : public Component, public uart::UARTDevice {
       : uart::UARTDevice(parent) {}
 
   void set_ep_382c(bool enabled) { ep_382c_ = enabled; }
+  void set_dtr_enabled(bool enabled) { dtr_enabled_ = enabled; }
+  void set_dtr_pin(GPIOPin *pin) { dtr_pin_ = pin; }
+  void set_dtr_inverted(bool inverted) { dtr_inverted_ = inverted; }
+  void set_tx_baud_rate(uint32_t baud_rate) { tx_baud_rate_ = baud_rate; }
   const char *model() const { return ep_382c_ ? "EP-382C" : "EP-261C"; }
   size_t columns() const { return ep_382c_ ? 48 : 32; }
   size_t small_columns() const { return ep_382c_ ? 64 : 42; }
 
-  void setup() override { begin(); }
+  void setup() override {
+    if (dtr_enabled_ && dtr_pin_ != nullptr) dtr_pin_->setup();
+    begin();
+  }
 
   float get_setup_priority() const override { return setup_priority::DATA; }
 
@@ -76,7 +85,11 @@ class ThermalPrinterComponent : public Component, public uart::UARTDevice {
     ESP_LOGCONFIG("thermal_printer", "Cashino %s Thermal Printer (%u/%u columns)",
                   model(), static_cast<unsigned>(columns()),
                   static_cast<unsigned>(small_columns()));
-    ESP_LOGCONFIG("thermal_printer", "  Driver version: 0.9.0");
+    ESP_LOGCONFIG("thermal_printer", "  Driver version: 0.10.0");
+    ESP_LOGCONFIG("thermal_printer", "  DTR flow control: %s",
+                  dtr_enabled_ ? (dtr_inverted_ ? "enabled, ready LOW"
+                                                : "enabled, ready HIGH")
+                               : "disabled");
   }
 
   void begin() {
@@ -107,9 +120,11 @@ class ThermalPrinterComponent : public Component, public uart::UARTDevice {
           now - last_cut_ms_ < CUT_COOLDOWN_MS) {
         return;
       }
-      if (now - last_tx_ms_ >= 20) {
+      if (!dtr_ready_()) return;
+      const uint32_t interval = dtr_enabled_ ? DTR_TX_INTERVAL_MS : 20;
+      if (now - last_tx_ms_ >= interval) {
         const size_t remaining = job.bytes->size() - job.offset;
-        const size_t count = std::min(remaining, TP_TX_CHUNK);
+        const size_t count = std::min(remaining, tx_chunk_size_());
         if (count > 0) {
           write_array(job.bytes->data() + job.offset, count);
           job.offset += count;
@@ -154,7 +169,7 @@ class ThermalPrinterComponent : public Component, public uart::UARTDevice {
     for (uint8_t i = 0; i < copies; i++) {
       Job job;
       job.bytes = rendered;
-      job.contains_cut = options.cut;
+      job.contains_cut = options.cut_mode != CutMode::OFF;
       jobs_.push_back(std::move(job));
     }
     queued_rendered_bytes_ += rendered->size();
@@ -179,7 +194,7 @@ class ThermalPrinterComponent : public Component, public uart::UARTDevice {
   bool enqueue_test_page() {
     PrintOptions options;
     options.feed_lines = 4;
-    options.cut = true;
+    options.cut_mode = CutMode::FULL;
     return enqueue_markdown(
         "# Testdruck\n"
         "ASCII: Ae Oe Ue ae oe ue ss EUR\n"
@@ -207,6 +222,7 @@ class ThermalPrinterComponent : public Component, public uart::UARTDevice {
       if (job.contains_cut && job.offset == 0 && last_cut_ms_ != 0 &&
           now - last_cut_ms_ < CUT_COOLDOWN_MS)
         return "Wartet auf Schneidwerk";
+      if (!dtr_ready_()) return "Wartet auf DTR-Freigabe";
       return "Druckt (" + std::to_string(jobs_.size()) +
              (jobs_.size() == 1 ? " Auftrag)" : " Auftraege)");
     }
@@ -240,11 +256,17 @@ class ThermalPrinterComponent : public Component, public uart::UARTDevice {
   static constexpr uint32_t STATUS_TIMEOUT_MS = 300;
   static constexpr uint32_t STATUS_STALE_MS = 15000;
   static constexpr uint32_t CUT_COOLDOWN_MS = 3200;
+  static constexpr uint32_t DTR_TX_INTERVAL_MS = 10;
+  static constexpr size_t DTR_TX_CHUNK_MAX = 128;
 
   std::deque<Job> jobs_;
   size_t queued_rendered_bytes_{0};
   bool ep_382c_{false};
   bool initialized_{false};
+  bool dtr_enabled_{false};
+  bool dtr_inverted_{false};
+  GPIOPin *dtr_pin_{nullptr};
+  uint32_t tx_baud_rate_{9600};
   uint32_t last_tx_ms_{0};
   uint32_t last_print_finished_ms_{0};
   uint32_t last_cut_ms_{0};
@@ -257,6 +279,20 @@ class ThermalPrinterComponent : public Component, public uart::UARTDevice {
   bool status_valid_[5]{false, false, false, false, false};
   std::string notice_;
   uint32_t notice_until_ms_{0};
+
+  bool dtr_ready_() const {
+    if (!dtr_enabled_ || dtr_pin_ == nullptr) return true;
+    const bool level = dtr_pin_->digital_read();
+    return dtr_inverted_ ? !level : level;
+  }
+
+  size_t tx_chunk_size_() const {
+    if (!dtr_enabled_) return TP_TX_CHUNK;
+    // 8N1 uses ten serial bits per byte. Send at about 95% of the configured
+    // line rate and sample DTR again before every small block.
+    const size_t chunk = static_cast<size_t>(tx_baud_rate_) * 19U / 20000U;
+    return std::max<size_t>(1, std::min<size_t>(chunk, DTR_TX_CHUNK_MAX));
+  }
 
   bool reject_(const std::string &message) {
     notice_ = "Abgewiesen: " + message;
@@ -785,7 +821,10 @@ class ThermalPrinterComponent : public Component, public uart::UARTDevice {
     set_underline_(out, style, false);
     set_line_spacing_(out, 30);
     append_(out, {TP_ESC, 'd', static_cast<uint8_t>(std::min<uint8_t>(options.feed_lines, 20))});
-    if (options.cut) append_(out, {TP_GS, 'V', 0x00});
+    if (options.cut_mode == CutMode::FULL)
+      append_(out, {TP_GS, 'V', 0x00});
+    else if (options.cut_mode == CutMode::PARTIAL)
+      append_(out, {TP_GS, 'V', 0x01});
     return out;
   }
 
@@ -876,4 +915,5 @@ inline ThermalPrinterComponent *&driver_instance() {
 }  // namespace esphome::thermal_printer
 
 using esphome::thermal_printer::PrintOptions;
+using esphome::thermal_printer::CutMode;
 using esphome::thermal_printer::ThermalPrinterComponent;

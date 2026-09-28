@@ -171,7 +171,9 @@ assert.match(printerPackageSource, /size == "small" \? 3/, "ESPHome maps small t
 assert.match(printerPackageSource, /id\(printer_driver\)->enqueue_markdown/, "print action uses the registered external component");
 assert.match(componentSource, /uart\.register_uart_device/, "external component registers its UART parent");
 assert.match(driverSource, /public Component, public uart::UARTDevice/, "driver is a native ESPHome component");
-assert.match(driverSource, /void setup\(\) override \{ begin\(\); \}/, "ESPHome initializes the driver automatically");
+assert.match(driverSource, /void setup\(\) override \{[\s\S]*begin\(\);[\s\S]*\}/, "ESPHome initializes the driver automatically");
+assert.match(driverSource, /CutMode::PARTIAL[\s\S]*0x01/, "driver emits partial-cut mode");
+assert.match(driverSource, /dtr_pin_->digital_read\(\)/, "driver gates transmission with the DTR input");
 assert.match(driverSource, /options\.size == 3 \? 1 : 0/, "driver mode 3 selects Font B");
 assert.match(driverSource, /options\.size == 3\) return small_columns\(\)/, "driver mode 3 uses model-specific Font B width");
 assert.match(driverSource, /character\.wide && base_size == 0 \? 2 : 1/, "driver counts inline-wide characters as two columns");

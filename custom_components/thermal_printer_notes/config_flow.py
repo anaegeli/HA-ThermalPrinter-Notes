@@ -24,7 +24,7 @@ import voluptuous as vol
 
 from .const import (
     CONF_COPIES,
-    CONF_CUT,
+    CONF_CUT_MODE,
     CONF_FEED_LINES,
     CONF_HISTORY_LIMIT,
     CONF_PRINT_ACTION,
@@ -32,7 +32,8 @@ from .const import (
     CONF_REVERSE_PRINT,
     CONF_SOURCE_DEVICE_ID,
     DEFAULT_COPIES,
-    DEFAULT_CUT,
+    CUT_MODES,
+    DEFAULT_CUT_MODE,
     DEFAULT_FEED_LINES,
     DEFAULT_HISTORY_LIMIT,
     DEFAULT_PRINT_ACTION,
@@ -105,9 +106,13 @@ def _schema(defaults: dict[str, Any]) -> vol.Schema:
                 default=defaults.get(CONF_REVERSE_PRINT, DEFAULT_REVERSE_PRINT),
             ): BooleanSelector(),
             vol.Required(
-                CONF_CUT,
-                default=defaults.get(CONF_CUT, DEFAULT_CUT),
-            ): BooleanSelector(),
+                CONF_CUT_MODE,
+                default=defaults.get(CONF_CUT_MODE, DEFAULT_CUT_MODE),
+            ): SelectSelector(
+                SelectSelectorConfig(
+                    options=list(CUT_MODES), translation_key="cut_mode"
+                )
+            ),
         }
     )
 
@@ -124,7 +129,9 @@ def _normalize(user_input: dict[str, Any]) -> dict[str, Any]:
         CONF_COPIES: int(user_input[CONF_COPIES]),
         CONF_FEED_LINES: int(user_input[CONF_FEED_LINES]),
         CONF_REVERSE_PRINT: bool(user_input[CONF_REVERSE_PRINT]),
-        CONF_CUT: bool(user_input[CONF_CUT]),
+        CONF_CUT_MODE: vol.In(CUT_MODES)(
+            user_input.get(CONF_CUT_MODE, DEFAULT_CUT_MODE)
+        ),
     }
 
 

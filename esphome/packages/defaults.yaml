@@ -21,7 +21,7 @@ substitutions:
   web_server_local: "true"
   web_server_include_internal: "true"
   project_name: anaegeli.thermal-printer-notes
-  project_version: "0.9.0"
+  project_version: "0.10.0"
   esp32_board: esp32-poe-iso
   esp32_variant: esp32
   esp32_framework: esp-idf
@@ -38,6 +38,9 @@ substitutions:
   printer_baud_rate: "9600"
   printer_rx_buffer_size: "256"
   printer_feed_button_lines: "5"
+  printer_dtr_enabled: "false"
+  printer_dtr_pin: GPIO36
+  printer_dtr_inverted: "false"
   thermal_printer_repository: https://github.com/anaegeli/HA-ThermalPrinter-Notes
   thermal_printer_ref: main
   thermal_printer_refresh: 1h

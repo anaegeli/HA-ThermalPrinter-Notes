@@ -19,6 +19,14 @@ virtual void dump_config() {} virtual float get_setup_priority() const { return 
 #include <cstdint>
 inline uint32_t test_clock = 10000;
 inline uint32_t millis() { return test_clock; }
+namespace esphome {
+class GPIOPin {
+ public:
+  bool level{true};
+  void setup() {}
+  bool digital_read() const { return level; }
+};
+}
 ''',
         "esphome/core/log.h": '''#pragma once
 #define ESP_LOGCONFIG(...) ((void)0)

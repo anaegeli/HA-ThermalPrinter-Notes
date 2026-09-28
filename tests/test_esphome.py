@@ -25,7 +25,8 @@ def local_template(source):
 
 
 def validate(network="ethernet", model="EP-261C", static=False, build=False,
-             legacy=False, features=False, invalid=None, custom_wifi=False):
+             legacy=False, features=False, invalid=None, custom_wifi=False,
+             dtr=False, baud=9600):
     with tempfile.TemporaryDirectory(prefix="thermal-printer-") as directory:
         work = Path(directory)
         shutil.copytree(ROOT / "esphome/packages", work / "packages")
@@ -61,6 +62,9 @@ def validate(network="ethernet", model="EP-261C", static=False, build=False,
                 source = source.replace("ip_mode: dhcp", "ip_mode: static").replace('static_ip: ""', 'static_ip: "192.0.2.10"').replace('gateway: ""', 'gateway: "192.0.2.1"').replace('dns1: "0.0.0.0"', 'dns1: "192.0.2.53"')
             if features:
                 source = source.replace('wifi_ap_enabled: "false"', 'wifi_ap_enabled: "true"').replace('wifi_ap_password: ""', 'wifi_ap_password: !secret wifi_hotspot_password').replace('web_server_enabled: "false"', 'web_server_enabled: "true"').replace('network_use_address: ""', 'network_use_address: "192.0.2.99"')
+            source = source.replace('printer_baud_rate: "9600"', f'printer_baud_rate: "{baud}"')
+            if dtr:
+                source = source.replace('printer_dtr_enabled: "false"', 'printer_dtr_enabled: "true"')
         source = source.replace("printer_tx_pin: GPIO4", "printer_tx_pin: GPIO14").replace("printer_rx_pin: GPIO5", "printer_rx_pin: GPIO13")
         if invalid:
             source = source.replace(*invalid)
@@ -90,7 +94,11 @@ def validate(network="ethernet", model="EP-261C", static=False, build=False,
             assert wifi_network["password"] == ("custom-wifi-password" if custom_wifi else "test-wifi-password")
         assert config["uart"][0]["tx_pin"]["number"] == 14
         assert config["uart"][0]["rx_pin"]["number"] == 13
+        assert config["uart"][0]["baud_rate"] == baud
         assert config["thermal_printer"]["model"] == model
+        assert config["thermal_printer"]["baud_rate"] == baud
+        assert config["thermal_printer"]["dtr_enabled"] is dtr
+        assert config["thermal_printer"]["dtr_pin"]["number"] == 36
         assert not config["esphome"].get("includes"), "local header must not be required"
         if static:
             assert str(config[network]["manual_ip"]["static_ip"]) == "192.0.2.10"
@@ -114,6 +122,8 @@ def validate(network="ethernet", model="EP-261C", static=False, build=False,
         assert write_cpp(config) == 0
         generated = Path(CORE.relative_src_path("main.cpp")).read_text(encoding="utf-8")
         assert f"set_ep_382c({'true' if model == 'EP-382C' else 'false'})" in generated
+        assert f"set_tx_baud_rate({baud})" in generated
+        assert f"set_dtr_enabled({'true' if dtr else 'false'})" in generated
         if build:
             subprocess.run([sys.executable, "-m", "esphome", "compile", str(config_file)], check=True)
         print(f"Validated {model}/{network}/{'static' if static else 'dhcp'}; legacy={legacy}; features={features}")
@@ -129,7 +139,9 @@ if __name__ == "__main__":
     for model in [args.model] if args.model else ["EP-261C", "EP-382C"]:
         for network in [args.network] if args.network else ["ethernet", "wifi"]:
             for mode in [args.ip_mode] if args.ip_mode else ["dhcp", "static"]:
-                validate(network, model, static=mode == "static", features=network == "wifi", build=args.compile)
+                flow_test = model == "EP-382C" and network == "ethernet" and mode == "dhcp"
+                validate(network, model, static=mode == "static", features=network == "wifi",
+                         build=args.compile, dtr=flow_test, baud=38400 if flow_test else 9600)
     if not args.compile:
         validate("wifi", custom_wifi=True)  # only custom secret names exist
         validate("wifi")  # no hotspot secret required while AP is disabled

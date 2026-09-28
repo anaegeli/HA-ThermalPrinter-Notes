@@ -63,10 +63,16 @@ substitutions:
   printer_baud_rate: "9600"  # muss zur Selbsttestseite passen
   printer_rx_buffer_size: "256"
   printer_feed_button_lines: "5"
+  # Optionales Hardware-Flow-Control: DTR des Druckers -> ESP-Eingang.
+  # Nur mit elektrisch kompatiblem Signal aktivieren. inverted=false bedeutet
+  # HIGH = bereit; bei umgekehrtem Signal auf true setzen.
+  printer_dtr_enabled: "false"
+  printer_dtr_pin: GPIO36
+  printer_dtr_inverted: "false"
 
   # 9. Gemeinsamer Softwarestand fuer Packages UND C++-Treiber
   thermal_printer_repository: https://github.com/anaegeli/HA-ThermalPrinter-Notes
-  thermal_printer_ref: main  # alternativ ein Release-Tag, z.B. v0.9.0
+  thermal_printer_ref: main  # alternativ ein Release-Tag, z.B. v0.10.0
   thermal_printer_refresh: 1h
 
 # Ab hier sind fuer die Einrichtung keine Aenderungen erforderlich.

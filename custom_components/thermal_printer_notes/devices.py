@@ -91,11 +91,17 @@ def suggested_print_action(hass: HomeAssistant, device_id: str) -> str:
     if entities.status:
         object_id = entities.status.partition(".")[2]
         base = object_id.removesuffix("_status")
+        candidate = f"esphome.{base}_print_markdown_mode"
+        if hass.services.has_service("esphome", f"{base}_print_markdown_mode"):
+            return candidate
         candidate = f"esphome.{base}_print_markdown"
         if hass.services.has_service("esphome", f"{base}_print_markdown"):
             return candidate
 
     name_base = slugify(source_device_name(hass, device_id)).replace("-", "_")
+    candidate_service = f"{name_base}_print_markdown_mode"
+    if hass.services.has_service("esphome", candidate_service):
+        return f"esphome.{candidate_service}"
     candidate_service = f"{name_base}_print_markdown"
     if hass.services.has_service("esphome", candidate_service):
         return f"esphome.{candidate_service}"
@@ -106,9 +112,12 @@ def suggested_print_action(hass: HomeAssistant, device_id: str) -> str:
 
 def find_source_device_from_action(hass: HomeAssistant, action: str) -> str:
     """Best-effort migration of a legacy single-printer entry."""
-    if not action.startswith("esphome.") or not action.endswith("_print_markdown"):
+    if not action.startswith("esphome.") or not action.endswith(
+        ("_print_markdown", "_print_markdown_mode")
+    ):
         return ""
-    base = action.removeprefix("esphome.").removesuffix("_print_markdown")
+    base = action.removeprefix("esphome.")
+    base = base.removesuffix("_print_markdown_mode").removesuffix("_print_markdown")
     registry = er.async_get(hass)
     for entity_id in (
         f"sensor.{base}_status",

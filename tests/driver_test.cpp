@@ -50,7 +50,11 @@ int main() {
     assert(bytes.find("User" + std::string(small - 8, ' ') + "Time\n") != std::string::npos);
     assert(bytes.find(std::string("\x1b\x74\x10", 3)) != std::string::npos);
     assert(bytes.find(std::string("\x1d\x56\x00", 3)) != std::string::npos);
-    options.cut = false;
+    options.cut_mode = CutMode::PARTIAL;
+    bytes = print(printer, "Partial", options);
+    assert(bytes.find(std::string("\x1d\x56\x01", 3)) != std::string::npos);
+    assert(bytes.find(std::string("\x1d\x56\x00", 3)) == std::string::npos);
+    options.cut_mode = CutMode::OFF;
     options.reverse_print = true;
     bytes = print(printer, "First\nLast", options);
     assert(bytes.find("Last") < bytes.find("First"));
@@ -76,6 +80,30 @@ int main() {
     assert(sensor.ready());
     test_clock += 16000;
     assert(!sensor.ready());
+
+    GPIOPin dtr;
+    ThermalPrinterComponent flow;
+    flow.set_ep_382c(wide);
+    flow.set_dtr_pin(&dtr);
+    flow.set_dtr_enabled(true);
+    flow.set_tx_baud_rate(38400);
+    flow.setup();
+    flow.output.clear();
+    dtr.level = false;
+    assert(flow.enqueue_markdown(std::string(200, 'D'), {}));
+    test_clock += 20;
+    flow.loop();
+    assert(flow.output.empty());
+    assert(flow.status_text() == "Wartet auf DTR-Freigabe");
+    dtr.level = true;
+    test_clock += 10;
+    flow.loop();
+    assert(flow.output.size() == 36);  // 95% of 38400 baud in a 10 ms block
+    flow.set_dtr_inverted(true);
+    test_clock += 10;
+    const size_t sent = flow.output.size();
+    flow.loop();
+    assert(flow.output.size() == sent);
   }
   std::cout << "Both drivers: emitted bytes, layout, commands and status passed\n";
 }

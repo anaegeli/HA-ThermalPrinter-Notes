@@ -91,6 +91,7 @@ async def run():
     await integration.async_setup_entry(hass, entry)
     assert const.printer_model(entry) == "EP-261C"
     assert const.preview_profile(entry)["dots"] == 384
+    assert const.entry_settings(entry)["cut_mode"] == "full"
     runtime = hass.data["thermal_printer_notes"]["entries"][entry.entry_id]
     assert (await runtime["store"].async_get_draft("alice"))["size"] == "double_width"
     assert (await runtime["store"].async_get_history("alice", "old-id"))["markdown"] == "Old receipt"
@@ -108,10 +109,14 @@ async def run():
     await integration.async_setup_entry(hass, modern)
     modern_store = hass.data["thermal_printer_notes"]["entries"][modern.entry_id]["store"]
     modern.options["printer_model"] = "EP-382C"
+    modern.options["cut"] = False
     assert const.entry_settings(modern)["printer_model"] == "EP-382C"
     assert const.preview_profile(modern)["dots"] == 576
     assert const.preview_profile(modern)["normal_columns"] == 48
     assert const.preview_profile(modern)["small_columns"] == 64
+    assert const.entry_settings(modern)["cut_mode"] == "off"
+    modern.options["cut_mode"] = "partial"
+    assert const.entry_settings(modern)["cut_mode"] == "partial"
     assert const.preview_profile(entry)["dots"] == 384
     modern.options.clear()
     modern.data["printer_model"] = "EP-382C"

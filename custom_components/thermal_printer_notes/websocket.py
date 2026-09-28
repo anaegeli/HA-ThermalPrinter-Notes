@@ -106,7 +106,11 @@ def _resolved_print_action(hass: HomeAssistant, entry: ConfigEntry) -> str:
     """Return an available configured or automatically discovered action."""
     configured = str(entry_settings(entry)["print_action"])
     automatic = suggested_print_action(hass, source_device_id(entry))
-    for action in dict.fromkeys((configured, automatic)):
+    mode_actions = []
+    for action in (configured, automatic):
+        if action and action.endswith("_print_markdown"):
+            mode_actions.append(f"{action}_mode")
+    for action in dict.fromkeys((*mode_actions, configured, automatic)):
         if not action or action.count(".") != 1:
             continue
         domain, service = _action_parts(action)
@@ -194,6 +198,7 @@ async def _submit_print(
         "feed_lines": settings["feed_lines"],
         "reverse_print": settings["reverse_print"],
         "cut": settings["cut"],
+        "cut_mode": settings["cut_mode"],
     }
     try:
         compatible_service_data = _adapt_service_data(
